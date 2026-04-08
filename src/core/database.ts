@@ -43,6 +43,35 @@ export function initializeDatabase(db: Database): void {
       prefix TEXT NOT NULL DEFAULT '!',
       self_react_penalty INTEGER NOT NULL DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS bot_message_attributions (
+      message_id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      bot_user_id TEXT NOT NULL,
+      attributed_user_id TEXT NOT NULL,
+      strategy TEXT NOT NULL,
+      confidence REAL NOT NULL DEFAULT 1.0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bma_guild_bot
+      ON bot_message_attributions(guild_id, bot_user_id);
+    CREATE INDEX IF NOT EXISTS idx_bma_channel
+      ON bot_message_attributions(channel_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS pending_link_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      canonical_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plp_channel_canonical
+      ON pending_link_posts(channel_id, canonical_id, created_at);
   `);
 
   const safeAddColumn = (table: string, column: string, type: string) => {
@@ -53,4 +82,5 @@ export function initializeDatabase(db: Database): void {
 
   safeAddColumn("guild_settings", "fmbot_user_id", "TEXT");
   safeAddColumn("guild_settings", "fmbot_prefix", "TEXT");
+  safeAddColumn("reaction_events", "bot_author_id", "TEXT DEFAULT NULL");
 }

@@ -5,6 +5,7 @@ import { initializeDatabase } from "./core/database";
 import { getDynamicCommandByAlias, handlePrefixCommand } from "./core/router";
 import type { Module } from "./core/module";
 import { adminModule } from "./modules/admin";
+import { botAttributionModule } from "./modules/bot-attribution";
 import { customLeaderboardModule } from "./modules/custom-leaderboard";
 import { emojiTrackerModule } from "./modules/emoji-tracker";
 import { helpModule } from "./modules/help";
@@ -17,6 +18,7 @@ import { errorEmbed } from "./utils/embeds";
 import { scheduleS3Backup } from "./utils/s3-backup";
 
 const modules: Module[] = [
+  botAttributionModule,
   emojiTrackerModule,
   leaderboardModule,
   customLeaderboardModule,

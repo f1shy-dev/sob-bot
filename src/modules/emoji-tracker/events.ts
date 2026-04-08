@@ -1,6 +1,14 @@
-import type { MessageReaction, PartialMessageReaction, PartialUser, User } from "discord.js";
+import type {
+  Message,
+  MessageReaction,
+  PartialMessageReaction,
+  PartialUser,
+  User,
+} from "discord.js";
 import type { BotClient } from "../../client";
 import { formatReactionEmoji } from "../../utils/emoji";
+import { detectAttributionLate } from "../bot-attribution/detector";
+import { getAttribution, storeAttribution } from "../bot-attribution/queries";
 
 async function resolveReaction(
   reaction: MessageReaction | PartialMessageReaction,
@@ -37,8 +45,42 @@ export async function handleReactionAdd(
   const emoji = formatReactionEmoji(resolvedReaction.emoji);
   if (!emoji) return;
 
-  const messageAuthorId = resolvedReaction.message.author?.id;
-  if (!messageAuthorId) return;
+  const rawAuthorId = resolvedReaction.message.author?.id;
+  if (!rawAuthorId) return;
+
+  let messageAuthorId = rawAuthorId;
+  let botAuthorId: string | null = null;
+
+  if (resolvedReaction.message.author?.bot) {
+    botAuthorId = rawAuthorId;
+
+    let attribution = getAttribution(client.db, resolvedReaction.message.id);
+
+    if (!attribution) {
+      const lateResult = await detectAttributionLate(client, resolvedReaction.message as Message);
+      if (lateResult && resolvedReaction.message.guild) {
+        storeAttribution(client.db, {
+          messageId: resolvedReaction.message.id,
+          guildId: resolvedReaction.message.guild.id,
+          channelId: resolvedReaction.message.channel.id,
+          botUserId: rawAuthorId,
+          attributedUserId: lateResult.userId,
+          strategy: lateResult.strategy,
+          confidence: lateResult.confidence,
+        });
+        attribution = {
+          attributed_user_id: lateResult.userId,
+          bot_user_id: rawAuthorId,
+          strategy: lateResult.strategy,
+          confidence: lateResult.confidence,
+        };
+      }
+    }
+
+    if (attribution) {
+      messageAuthorId = attribution.attributed_user_id;
+    }
+  }
 
   const isSelfReact = user.id === messageAuthorId ? 1 : 0;
 
@@ -52,9 +94,10 @@ export async function handleReactionAdd(
         reactor_id,
         emoji,
         is_self_react,
+        bot_author_id,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       resolvedReaction.message.guild.id,
@@ -64,6 +107,7 @@ export async function handleReactionAdd(
       user.id,
       emoji,
       isSelfReact,
+      botAuthorId,
       Math.floor(Date.now() / 1000),
     );
 }
