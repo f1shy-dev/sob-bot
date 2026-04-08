@@ -30,10 +30,15 @@ export async function attachPagination(
   options: {
     userId: string;
     totalPages: number;
-    fetchPage: (page: number) => {
-      embeds: EmbedBuilder[];
-      components: ActionRowBuilder<ButtonBuilder>[];
-    };
+    fetchPage: (page: number) =>
+      | {
+          embeds: EmbedBuilder[];
+          components: ActionRowBuilder<ButtonBuilder>[];
+        }
+      | Promise<{
+          embeds: EmbedBuilder[];
+          components: ActionRowBuilder<ButtonBuilder>[];
+        }>;
   },
 ): Promise<void> {
   if (options.totalPages <= 1) return;
@@ -48,12 +53,12 @@ export async function attachPagination(
   collector.on("collect", async (interaction) => {
     page += interaction.customId === "lb_prev" ? -1 : 1;
     page = Math.min(Math.max(page, 0), options.totalPages - 1);
-    await interaction.update(options.fetchPage(page));
+    await interaction.update(await options.fetchPage(page));
   });
 
   collector.on("end", async () => {
     try {
-      const payload = options.fetchPage(page);
+      const payload = await options.fetchPage(page);
       const row = payload.components[0];
       await replyMessage.edit({
         components: row

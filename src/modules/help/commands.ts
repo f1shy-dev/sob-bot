@@ -42,11 +42,7 @@ function buildHelpEmbed(client: BotClient, guildId: string, admin: boolean) {
     embed.spliceFields(1, 0, {
       name: "⚙️ Admin",
       value: [
-        "`settings prefix <new-prefix>` — Set server prefix",
-        "`settings selfreact <on|off>` — Toggle self-react penalty",
-        "`settings fmbot <@bot>` — Set fmbot bot user for attribution",
-        "`settings fmbot-prefix <prefix>` — Set fmbot command prefix",
-        "`settings info` — Show current settings",
+        "`settings` — View current settings and available settings commands",
         "`define-leaderboard <word> <emoji>` — Create a custom leaderboard",
         "`remove-leaderboard <word>` — Remove a custom leaderboard",
         "`list-leaderboards` — Show all custom leaderboards",

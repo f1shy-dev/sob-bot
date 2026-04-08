@@ -165,24 +165,37 @@ async function replySettingsInfo(
   await respond(
     baseEmbed()
       .setTitle("Server Settings")
+      .setDescription("Current values and available settings commands.")
       .addFields(
-        { name: "Prefix", value: `\`${prefix}\``, inline: true },
-        { name: "Custom Leaderboards", value: `${leaderboardCount}`, inline: true },
-        { name: "Reaction Events Tracked", value: `${eventCount}`, inline: true },
-        { name: "Self-React Penalty", value: selfReactPenalty ? "on" : "off", inline: true },
         {
-          name: "fmbot User",
-          value: fmbotRow?.fmbot_user_id
-            ? `<@${fmbotRow.fmbot_user_id}> (\`${fmbotRow.fmbot_user_id}\`)`
-            : "Not configured",
-          inline: true,
+          name: "Current Values",
+          value: [
+            `**Prefix:** \`${prefix}\``,
+            `**Self-react penalty:** \`${selfReactPenalty ? "on" : "off"}\``,
+            `**fmbot user:** ${fmbotRow?.fmbot_user_id ? `<@${fmbotRow.fmbot_user_id}> (\`${fmbotRow.fmbot_user_id}\`)` : "Not configured"}`,
+            `**fmbot prefix:** ${fmbotRow?.fmbot_prefix ? `\`${fmbotRow.fmbot_prefix}\`` : "Not configured"}`,
+            `**Custom leaderboards:** \`${leaderboardCount}\``,
+            `**Reaction events tracked:** \`${eventCount}\``,
+          ].join("\n"),
         },
         {
-          name: "fmbot Prefix",
-          value: fmbotRow?.fmbot_prefix
-            ? `\`${fmbotRow.fmbot_prefix}\``
-            : "Not configured (module off)",
-          inline: true,
+          name: "Commands",
+          value: [
+            `\`${prefix}settings prefix <new-prefix>\``,
+            `\`${prefix}settings selfreact <on|off>\``,
+            `\`${prefix}settings fmbot <@bot-or-id>\``,
+            `\`${prefix}settings fmbot-prefix <prefix>\``,
+            `\`${prefix}settings info\``,
+          ].join("\n"),
+        },
+        {
+          name: "Examples",
+          value: [
+            `\`${prefix}settings prefix ?\``,
+            `\`${prefix}settings selfreact off\``,
+            `\`${prefix}settings fmbot @.fmbot\``,
+            `\`${prefix}settings fmbot-prefix .\``,
+          ].join("\n"),
         },
       ),
   );
@@ -190,17 +203,17 @@ async function replySettingsInfo(
 
 function buildSettingsUsageEmbed(prefix: string) {
   return baseEmbed()
-    .setTitle("Command Usage")
-    .setDescription(`\`${prefix}settings <subcommand>\``)
+    .setTitle("Settings Commands")
+    .setDescription("Update server settings with one of the commands below.")
     .addFields(
       {
-        name: "Arguments",
+        name: "Commands",
         value: [
-          "`prefix <new-prefix>` — Set prefix",
-          "`selfreact <on|off>` — Toggle self-react penalty",
-          "`fmbot <@bot or ID>` — Set fmbot bot user",
-          "`fmbot-prefix <prefix>` — Set fmbot command prefix",
-          "`info` — Show current settings",
+          `\`${prefix}settings prefix <new-prefix>\` — Set prefix`,
+          `\`${prefix}settings selfreact <on|off>\` — Toggle self-react penalty`,
+          `\`${prefix}settings fmbot <@bot or ID>\` — Set fmbot bot user`,
+          `\`${prefix}settings fmbot-prefix <prefix>\` — Set fmbot command prefix`,
+          `\`${prefix}settings info\` — Show current settings`,
         ].join("\n"),
       },
       {

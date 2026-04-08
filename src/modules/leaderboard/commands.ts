@@ -11,11 +11,16 @@ import {
   getMostReactedMessages,
   getMostReactedMessagesCount,
 } from "../emoji-tracker/queries";
-import { buildLeaderboardEmbed, buildMostReactedEmbed } from "./embeds";
+import {
+  buildLeaderboardEmbed,
+  buildMostReactedEmbed,
+  type MostReactedPreview,
+} from "./embeds";
 import { attachPagination, buildPaginationRow } from "./pagination";
 
 const PAGE_SIZE = 10;
-const MAX_MOST_REACTED_OFFSET = 200;
+const MOST_REACTED_PAGE_SIZE = 1;
+const MAX_MOST_REACTED_MESSAGES = 5;
 
 export const emojiLeaderboardSlashCommand = new SlashCommandBuilder()
   .setName("emojileaderboard")
@@ -63,6 +68,12 @@ function parseSingleEmoji(input: string): string | null {
   const matches = [...extractEmoji(trimmed)];
   if (matches.length !== 1) return null;
   return matches[0] === trimmed ? matches[0] : null;
+}
+
+function truncate(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  if (maxLength <= 3) return value.slice(0, maxLength);
+  return `${value.slice(0, maxLength - 3)}...`;
 }
 
 function buildUsageEmbed(
@@ -176,6 +187,45 @@ async function renderLeaderboardReply(
   });
 }
 
+async function buildMostReactedPreview(
+  client: BotClient,
+  entry: { channel_id: string; message_id: string },
+): Promise<MostReactedPreview | undefined> {
+  try {
+    const channel = await client.channels.fetch(entry.channel_id);
+    if (!channel?.isTextBased() || !("messages" in channel)) return undefined;
+
+    const message = await channel.messages.fetch(entry.message_id);
+    const text = message.content.trim();
+    if (text) {
+      return {
+        author: `<@${message.author.id}>`,
+        text: truncate(text.replace(/\s+/g, " "), 280),
+      };
+    }
+
+    const embedText = message.embeds
+      .flatMap((embed) => [embed.title, embed.description, ...embed.fields.map((field) => field.value)])
+      .filter((value): value is string => Boolean(value))
+      .join(" — ")
+      .trim();
+    if (embedText) {
+      return {
+        author: `<@${message.author.id}>`,
+        text: truncate(embedText.replace(/\s+/g, " "), 280),
+      };
+    }
+
+    if (message.attachments.size > 0) {
+      return { author: `<@${message.author.id}>`, text: "[attachment]" };
+    }
+
+    return { author: `<@${message.author.id}>`, text: "[no preview available]" };
+  } catch {
+    return undefined;
+  }
+}
+
 async function renderMostReactedReply(
   client: BotClient,
   context: {
@@ -191,7 +241,7 @@ async function renderMostReactedReply(
 ): Promise<void> {
   const selfReactPenalty = getGuildSelfReactPenalty(client.db, context.guildId);
 
-  const fetchPage = (page: number) => {
+  const fetchPage = async (page: number) => {
     const totalMessages = Math.min(
       getMostReactedMessagesCount(
         client.db,
@@ -200,20 +250,21 @@ async function renderMostReactedReply(
         context.period,
         selfReactPenalty,
       ),
-      MAX_MOST_REACTED_OFFSET,
+      MAX_MOST_REACTED_MESSAGES,
     );
-    const totalPages = getTotalPages(totalMessages);
+    const totalPages = Math.max(1, totalMessages);
     const safePage = Math.min(page, totalPages - 1);
-    const safeOffset = Math.min(safePage * PAGE_SIZE, MAX_MOST_REACTED_OFFSET);
     const entries = getMostReactedMessages(
       client.db,
       context.guildId,
       context.emoji,
       context.period,
       selfReactPenalty,
-      PAGE_SIZE,
-      safeOffset,
+      MOST_REACTED_PAGE_SIZE,
+      safePage,
     );
+    const entry = entries[0] ?? null;
+    const preview = entry ? await buildMostReactedPreview(client, entry) : undefined;
 
     return {
       embeds: [
@@ -221,21 +272,22 @@ async function renderMostReactedReply(
           context.emoji,
           context.guildId,
           context.period,
-          entries,
+          entry,
           safePage,
           totalMessages,
-          PAGE_SIZE,
+          preview,
         ),
       ],
       components: totalPages > 1 ? [buildPaginationRow(safePage, totalPages)] : [],
     };
   };
 
-  const initial = fetchPage(0);
+  const initial = await fetchPage(0);
   const replyMessage = await send(initial);
   await attachPagination(replyMessage, {
     userId: context.userId,
-    totalPages: getTotalPages(
+    totalPages: Math.max(
+      1,
       Math.min(
         getMostReactedMessagesCount(
           client.db,
@@ -244,7 +296,7 @@ async function renderMostReactedReply(
           context.period,
           selfReactPenalty,
         ),
-        MAX_MOST_REACTED_OFFSET,
+        MAX_MOST_REACTED_MESSAGES,
       ),
     ),
     fetchPage,
