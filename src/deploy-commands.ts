@@ -5,12 +5,7 @@ import { customLeaderboardModule } from "./modules/custom-leaderboard";
 import { emojiTrackerModule } from "./modules/emoji-tracker";
 import { leaderboardModule } from "./modules/leaderboard";
 
-const modules = [
-  emojiTrackerModule,
-  leaderboardModule,
-  customLeaderboardModule,
-  adminModule,
-];
+const modules = [emojiTrackerModule, leaderboardModule, customLeaderboardModule, adminModule];
 
 validateConfig();
 

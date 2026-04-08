@@ -1,8 +1,4 @@
-import {
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-  type Message,
-} from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type Message } from "discord.js";
 import type { BotClient } from "../../client";
 import { errorEmbed } from "../../utils/embeds";
 import { extractEmoji } from "../../utils/emoji";
@@ -17,10 +13,7 @@ export const emojiLeaderboardSlashCommand = new SlashCommandBuilder()
   .setName("emojileaderboard")
   .setDescription("Show the leaderboard for any emoji")
   .addStringOption((opt) =>
-    opt
-      .setName("emoji")
-      .setDescription("The emoji to show the leaderboard for")
-      .setRequired(true),
+    opt.setName("emoji").setDescription("The emoji to show the leaderboard for").setRequired(true),
   )
   .addStringOption((opt) =>
     opt
@@ -72,7 +65,9 @@ async function renderLeaderboardReply(
   const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
 
   const replyMessage = await send({
-    embeds: [buildLeaderboardEmbed(context.emoji, context.period, entries, 0, totalUsers, PAGE_SIZE)],
+    embeds: [
+      buildLeaderboardEmbed(context.emoji, context.period, entries, 0, totalUsers, PAGE_SIZE),
+    ],
     components: totalPages > 1 ? [buildPaginationRow(0, totalPages)] : [],
   });
 
@@ -96,7 +91,10 @@ export async function handleEmojiLeaderboardSlashCommand(
 
   const emoji = parseSingleEmoji(interaction.options.getString("emoji", true));
   if (!emoji) {
-    await interaction.reply({ embeds: [errorEmbed("Please provide a single valid emoji.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("Please provide a single valid emoji.")],
+      ephemeral: true,
+    });
     return true;
   }
 

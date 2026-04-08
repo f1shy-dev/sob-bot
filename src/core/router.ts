@@ -12,9 +12,7 @@ interface GuildLeaderboardRow {
 
 export function getGuildPrefix(client: BotClient, guildId: string): string {
   const row = client.db
-    .query<{ prefix: string }, [string]>(
-      "SELECT prefix FROM guild_settings WHERE guild_id = ?",
-    )
+    .query<{ prefix: string }, [string]>("SELECT prefix FROM guild_settings WHERE guild_id = ?")
     .get(guildId);
   return row?.prefix ?? config.defaultPrefix;
 }
@@ -65,10 +63,7 @@ export function getDynamicLeaderboardByAlias(
   );
 }
 
-export async function handlePrefixCommand(
-  client: BotClient,
-  message: Message,
-): Promise<void> {
+export async function handlePrefixCommand(client: BotClient, message: Message): Promise<void> {
   if (message.author.bot || !message.guild) return;
 
   const prefix = getGuildPrefix(client, message.guild.id);

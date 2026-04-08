@@ -73,7 +73,10 @@ export function scheduleS3Backup(): NodeJS.Timeout | null {
   if (!s3Config) return null;
 
   void uploadDatabaseBackup();
-  return setInterval(() => {
-    void uploadDatabaseBackup();
-  }, Math.max(1, s3Config.intervalHours) * 60 * 60 * 1000);
+  return setInterval(
+    () => {
+      void uploadDatabaseBackup();
+    },
+    Math.max(1, s3Config.intervalHours) * 60 * 60 * 1000,
+  );
 }

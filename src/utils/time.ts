@@ -35,6 +35,7 @@ export function parsePeriod(input: string | undefined): Period {
   if (lower === "daily" || lower === "day" || lower === "today" || lower === "d") return "daily";
   if (lower === "weekly" || lower === "week" || lower === "w") return "weekly";
   if (lower === "monthly" || lower === "month" || lower === "m") return "monthly";
-  if (lower === "alltime" || lower === "all" || lower === "a" || lower === "all-time") return "alltime";
+  if (lower === "alltime" || lower === "all" || lower === "a" || lower === "all-time")
+    return "alltime";
   return "weekly";
 }

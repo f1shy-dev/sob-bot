@@ -1,8 +1,4 @@
-import type {
-  Message,
-  ClientEvents,
-  ChatInputCommandInteraction,
-} from "discord.js";
+import type { Message, ClientEvents, ChatInputCommandInteraction } from "discord.js";
 import type { BotClient } from "../client";
 
 export interface SlashCommandDefinition {
@@ -14,11 +10,7 @@ export interface PrefixCommand {
   aliases: string[];
   description: string;
   adminOnly?: boolean;
-  execute: (
-    message: Message,
-    args: string[],
-    client: BotClient,
-  ) => Promise<void>;
+  execute: (message: Message, args: string[], client: BotClient) => Promise<void>;
 }
 
 export interface Module {

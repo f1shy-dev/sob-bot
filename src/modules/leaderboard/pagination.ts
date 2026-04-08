@@ -77,7 +77,9 @@ export async function attachLeaderboardPagination(
     }
 
     await interaction.update({
-      embeds: [buildLeaderboardEmbed(options.emoji, options.period, entries, page, totalUsers, pageSize)],
+      embeds: [
+        buildLeaderboardEmbed(options.emoji, options.period, entries, page, totalUsers, pageSize),
+      ],
       components: updatedTotalPages > 1 ? [buildPaginationRow(page, updatedTotalPages)] : [],
     });
   });
@@ -94,12 +96,15 @@ export async function attachLeaderboardPagination(
       await replyMessage.edit({
         components: [
           new ActionRowBuilder<ButtonBuilder>().addComponents(
-            ButtonBuilder.from(buildPaginationRow(page, currentTotalPages).components[0]).setDisabled(true),
-            ButtonBuilder.from(buildPaginationRow(page, currentTotalPages).components[1]).setDisabled(true),
+            ButtonBuilder.from(
+              buildPaginationRow(page, currentTotalPages).components[0],
+            ).setDisabled(true),
+            ButtonBuilder.from(
+              buildPaginationRow(page, currentTotalPages).components[1],
+            ).setDisabled(true),
           ),
         ],
       });
-    } catch {
-    }
+    } catch {}
   });
 }

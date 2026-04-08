@@ -16,15 +16,16 @@ export function buildLeaderboardEmbed(
   const totalPages = Math.max(1, Math.ceil(totalUsers / pageSize));
   const offset = page * pageSize;
 
-  const description = entries.length === 0
-    ? "No data yet for this period."
-    : entries
-        .map((entry, i) => {
-          const rank = offset + i + 1;
-          const medal = rank <= 3 ? MEDALS[rank - 1] : `**${rank}.**`;
-          return `${medal} <@${entry.user_id}> — **${entry.count}** uses`;
-        })
-        .join("\n");
+  const description =
+    entries.length === 0
+      ? "No data yet for this period."
+      : entries
+          .map((entry, i) => {
+            const rank = offset + i + 1;
+            const medal = rank <= 3 ? MEDALS[rank - 1] : `**${rank}.**`;
+            return `${medal} <@${entry.user_id}> — **${entry.count}** uses`;
+          })
+          .join("\n");
 
   return baseEmbed()
     .setTitle(`${emoji} Leaderboard — ${PERIOD_LABELS[period]}`)

@@ -13,10 +13,7 @@ const insertStmt = `
   VALUES (?, ?, ?, ?, ?, ?, ?)
 `;
 
-export async function handleMessageCreate(
-  client: BotClient,
-  message: Message,
-): Promise<void> {
+export async function handleMessageCreate(client: BotClient, message: Message): Promise<void> {
   if (message.author.bot || !message.guild) return;
 
   const emoji = extractEmoji(message.content);
@@ -61,13 +58,15 @@ export async function handleReactionAdd(
   if (!emoji) return;
 
   const now = Math.floor(Date.now() / 1000);
-  client.db.prepare(insertStmt).run(
-    reaction.message.guild.id,
-    user.id,
-    emoji,
-    "reaction",
-    reaction.message.channel.id,
-    reaction.message.id,
-    now,
-  );
+  client.db
+    .prepare(insertStmt)
+    .run(
+      reaction.message.guild.id,
+      user.id,
+      emoji,
+      "reaction",
+      reaction.message.channel.id,
+      reaction.message.id,
+      now,
+    );
 }
