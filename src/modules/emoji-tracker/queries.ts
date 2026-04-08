@@ -24,6 +24,7 @@ export function getCollectedLeaderboard(
               SUM(CASE WHEN is_self_react = 1 THEN ${selfReactValue} ELSE 1 END) as score
        FROM reaction_events
        WHERE guild_id = ? AND emoji = ? AND created_at >= ?
+         AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
        GROUP BY message_author_id
        HAVING score > 0
        ORDER BY score DESC
@@ -48,6 +49,7 @@ export function getCollectedLeaderboardCount(
          SELECT message_author_id
          FROM reaction_events
          WHERE guild_id = ? AND emoji = ? AND created_at >= ?
+           AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
          GROUP BY message_author_id
          HAVING SUM(CASE WHEN is_self_react = 1 THEN ${selfReactValue} ELSE 1 END) > 0
        )`,
@@ -84,6 +86,7 @@ export function getMostReactedMessages(
               MIN(created_at) as created_at
        FROM reaction_events
        WHERE guild_id = ? AND emoji = ? AND created_at >= ?
+         AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
        GROUP BY message_id, channel_id
        HAVING reaction_count > 0
        ORDER BY reaction_count DESC
@@ -108,6 +111,7 @@ export function getMostReactedMessagesCount(
          SELECT message_id, channel_id
          FROM reaction_events
          WHERE guild_id = ? AND emoji = ? AND created_at >= ?
+           AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
          GROUP BY message_id, channel_id
          HAVING SUM(CASE WHEN is_self_react = 1 THEN ${selfReactValue} ELSE 1 END) > 0
          LIMIT 200
