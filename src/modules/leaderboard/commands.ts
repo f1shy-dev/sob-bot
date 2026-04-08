@@ -37,7 +37,7 @@ export const emojiLeaderboardSlashCommand = new SlashCommandBuilder()
   );
 
 export const emojiMostReactedSlashCommand = new SlashCommandBuilder()
-  .setName("emojimosreacted")
+  .setName("emojimostreacted")
   .setDescription("Show the most reacted messages for any emoji")
   .addStringOption((opt) =>
     opt
@@ -292,7 +292,7 @@ export async function handleEmojiMostReactedSlashCommand(
   interaction: ChatInputCommandInteraction,
   client: BotClient,
 ): Promise<boolean> {
-  if (interaction.commandName !== "emojimosreacted" || !interaction.guildId) {
+  if (interaction.commandName !== "emojimostreacted" || !interaction.guildId) {
     return false;
   }
 
@@ -389,9 +389,9 @@ export async function handleEmojiMostReactedPrefixCommand(
       embeds: [
         buildUsageEmbed(
           "Command Usage",
-          `\`${prefix}emojimosreacted <emoji> [period]\``,
+          `\`${prefix}emojimostreacted <emoji> [period]\``,
           "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime (default: weekly)",
-          `\`${prefix}emojimosreacted 😭\`\n\`${prefix}emr 😭 monthly\``,
+          `\`${prefix}emojimostreacted 😭\`\n\`${prefix}emr 😭 monthly\``,
         ),
       ],
     });
@@ -404,9 +404,9 @@ export async function handleEmojiMostReactedPrefixCommand(
       embeds: [
         buildUsageEmbed(
           "Command Usage",
-          `\`${prefix}emojimosreacted <emoji> [period]\``,
+          `\`${prefix}emojimostreacted <emoji> [period]\``,
           "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime (default: weekly)",
-          `\`${prefix}emojimosreacted 😭\`\n\`${prefix}emr 😭 monthly\``,
+          `\`${prefix}emojimostreacted 😭\`\n\`${prefix}emr 😭 monthly\``,
         ),
       ],
     });

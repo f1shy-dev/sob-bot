@@ -28,7 +28,7 @@ function buildHelpEmbed(client: BotClient, guildId: string, admin: boolean) {
         name: "🏆 Leaderboards",
         value: [
           "`emojileaderboard <emoji> [period]` — Show collected leaderboard for any emoji",
-          "`emojimosreacted <emoji> [period]` — Show most reacted messages for any emoji",
+          "`emojimostreacted <emoji> [period]` — Show most reacted messages for any emoji",
           ...dynamicLines,
         ].join("\n"),
       },

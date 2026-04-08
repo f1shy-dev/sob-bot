@@ -18,7 +18,7 @@ export const leaderboardModule: Module = {
       execute: handleEmojiLeaderboardPrefixCommand,
     },
     {
-      aliases: ["emojimosreacted", "emr"],
+      aliases: ["emojimostreacted", "emr"],
       description: "Show the most reacted messages for an emoji",
       execute: handleEmojiMostReactedPrefixCommand,
     },
