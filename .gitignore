@@ -1,2 +1,8 @@
 # Agent skill repos (cloned on-demand, not committed)
 .agents/skills/discordjs-guide/repo/
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
