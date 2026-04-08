@@ -65,8 +65,7 @@ export const settingsSlashCommand = new SlashCommandBuilder()
 
 export const debugMessageContextMenu = new ContextMenuCommandBuilder()
   .setName(DEBUG_MESSAGE_COMMAND_NAME)
-  .setType(ApplicationCommandType.Message)
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+  .setType(ApplicationCommandType.Message);
 
 function isValidPrefix(prefix: string): boolean {
   return prefix.length >= 1 && prefix.length <= 5 && !/\s/.test(prefix);
