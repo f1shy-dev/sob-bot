@@ -1,4 +1,4 @@
-import { Collection, Events } from "discord.js";
+import { Collection, Events, REST, Routes } from "discord.js";
 import { BotClient } from "./client";
 import { config, validateConfig } from "./config";
 import { initializeDatabase } from "./core/database";
@@ -96,6 +96,18 @@ async function main(): Promise<void> {
   client.once(Events.ClientReady, async (readyClient) => {
     console.log(`✅ Logged in as ${readyClient.user.tag}`);
     console.log(`📊 Tracking emoji across ${readyClient.guilds.cache.size} servers`);
+
+    const globalCommands = modules
+      .flatMap((mod) => mod.slashCommands ?? [])
+      .map((cmd) => cmd.toJSON());
+
+    const rest = new REST({ version: "10" }).setToken(config.token);
+    try {
+      await rest.put(Routes.applicationCommands(config.clientId), { body: globalCommands });
+      console.log(`✅ Registered ${globalCommands.length} global slash commands`);
+    } catch (error) {
+      console.error("Failed to register global slash commands:", error);
+    }
 
     for (const mod of client.modules.values()) {
       if (mod.onReady) await mod.onReady(client);

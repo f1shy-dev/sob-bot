@@ -3,6 +3,7 @@ import type { BotClient } from "../client";
 import { config } from "../config";
 import { handleDynamicLeaderboardPrefixCommand } from "../modules/leaderboard/commands";
 import { errorEmbed } from "../utils/embeds";
+import { isAdmin } from "../utils/permissions";
 
 interface GuildLeaderboardRow {
   name: string;
@@ -80,7 +81,7 @@ export async function handlePrefixCommand(client: BotClient, message: Message): 
 
   if (!command && !dynamicLeaderboard) return;
 
-  if (command?.adminOnly && !message.member?.permissions.has("Administrator")) {
+  if (command?.adminOnly && !isAdmin(message.author.id, message.member)) {
     await message
       .reply({ embeds: [errorEmbed("You need Administrator permission to use this command.")] })
       .catch(() => {});
