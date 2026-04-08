@@ -2,11 +2,13 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type GuildMember,
 } from "discord.js";
 import type { BotClient } from "../../client";
 import { getGuildLeaderboardAliases } from "../../core/router";
 import { baseEmbed, errorEmbed, successEmbed } from "../../utils/embeds";
 import { extractEmoji } from "../../utils/emoji";
+import { isAdmin } from "../../utils/permissions";
 import { registerGuildLeaderboardCommands } from "./sync";
 
 export const defineLeaderboardSlashCommand = new SlashCommandBuilder()
@@ -82,6 +84,14 @@ async function handleDefineLeaderboard(
   if (!interaction.guildId) {
     await interaction.reply({
       embeds: [errorEmbed("This command can only be used in a server.")],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!isAdmin(interaction.user.id, interaction.member as GuildMember | null)) {
+    await interaction.reply({
+      embeds: [errorEmbed("You need Administrator permission to use this command.")],
       ephemeral: true,
     });
     return;
@@ -195,6 +205,14 @@ async function handleRemoveLeaderboard(
   if (!interaction.guildId) {
     await interaction.reply({
       embeds: [errorEmbed("This command can only be used in a server.")],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!isAdmin(interaction.user.id, interaction.member as GuildMember | null)) {
+    await interaction.reply({
+      embeds: [errorEmbed("You need Administrator permission to use this command.")],
       ephemeral: true,
     });
     return;
