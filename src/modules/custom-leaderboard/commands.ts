@@ -14,16 +14,10 @@ export const defineLeaderboardSlashCommand = new SlashCommandBuilder()
   .setDescription("Define a custom emoji leaderboard for this server")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((opt) =>
-    opt
-      .setName("name")
-      .setDescription("Leaderboard name (e.g., sob)")
-      .setRequired(true),
+    opt.setName("name").setDescription("Leaderboard name (e.g., sob)").setRequired(true),
   )
   .addStringOption((opt) =>
-    opt
-      .setName("emoji")
-      .setDescription("The emoji to track")
-      .setRequired(true),
+    opt.setName("emoji").setDescription("The emoji to track").setRequired(true),
   )
   .addStringOption((opt) =>
     opt
@@ -37,10 +31,7 @@ export const removeLeaderboardSlashCommand = new SlashCommandBuilder()
   .setDescription("Remove a custom leaderboard")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((opt) =>
-    opt
-      .setName("name")
-      .setDescription("Leaderboard name to remove")
-      .setRequired(true),
+    opt.setName("name").setDescription("Leaderboard name to remove").setRequired(true),
   );
 
 export const listLeaderboardsSlashCommand = new SlashCommandBuilder()
@@ -62,12 +53,14 @@ function parseSingleEmoji(input: string): string | null {
 }
 
 function parseAliases(raw: string): string[] {
-  return [...new Set(
-    raw
-      .split(",")
-      .map((alias) => alias.trim().toLowerCase())
-      .filter((alias) => /^[\w-]{1,32}$/.test(alias)),
-  )];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((alias) => alias.trim().toLowerCase())
+        .filter((alias) => /^[\w-]{1,32}$/.test(alias)),
+    ),
+  ];
 }
 
 function getGlobalCommandNames(client: BotClient): Set<string> {
@@ -87,7 +80,10 @@ async function handleDefineLeaderboard(
   client: BotClient,
 ): Promise<void> {
   if (!interaction.guildId) {
-    await interaction.reply({ embeds: [errorEmbed("This command can only be used in a server.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("This command can only be used in a server.")],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -96,34 +92,57 @@ async function handleDefineLeaderboard(
   const aliases = parseAliases(interaction.options.getString("aliases", true));
 
   if (!/^[\w-]{1,32}$/.test(name)) {
-    await interaction.reply({ embeds: [errorEmbed("Leaderboard name must be 1-32 characters using letters, numbers, `_`, or `-`.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [
+        errorEmbed("Leaderboard name must be 1-32 characters using letters, numbers, `_`, or `-`."),
+      ],
+      ephemeral: true,
+    });
     return;
   }
 
   if (!emoji) {
-    await interaction.reply({ embeds: [errorEmbed("Please provide a single valid emoji.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("Please provide a single valid emoji.")],
+      ephemeral: true,
+    });
     return;
   }
 
   if (aliases.length === 0) {
-    await interaction.reply({ embeds: [errorEmbed("Provide at least one valid alias using letters, numbers, `_`, or `-`.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("Provide at least one valid alias using letters, numbers, `_`, or `-`.")],
+      ephemeral: true,
+    });
     return;
   }
 
   const globalCommandNames = getGlobalCommandNames(client);
   const guildLeaderboards = getGuildLeaderboardAliases(client, interaction.guildId);
   const takenAliases = new Set(
-    guildLeaderboards.flatMap((leaderboard) => leaderboard.aliases.map((alias) => alias.toLowerCase())),
+    guildLeaderboards.flatMap((leaderboard) =>
+      leaderboard.aliases.map((alias) => alias.toLowerCase()),
+    ),
   );
 
   for (const alias of aliases) {
     if (globalCommandNames.has(alias)) {
-      await interaction.reply({ embeds: [errorEmbed(`Alias \`${alias}\` conflicts with an existing bot command.`)], ephemeral: true });
+      await interaction.reply({
+        embeds: [errorEmbed(`Alias \`${alias}\` conflicts with an existing bot command.`)],
+        ephemeral: true,
+      });
       return;
     }
 
     if (takenAliases.has(alias)) {
-      await interaction.reply({ embeds: [errorEmbed(`Alias \`${alias}\` is already used by another custom leaderboard in this server.`)], ephemeral: true });
+      await interaction.reply({
+        embeds: [
+          errorEmbed(
+            `Alias \`${alias}\` is already used by another custom leaderboard in this server.`,
+          ),
+        ],
+        ephemeral: true,
+      });
       return;
     }
   }
@@ -136,7 +155,10 @@ async function handleDefineLeaderboard(
     .get(interaction.guildId, name);
 
   if (existing) {
-    await interaction.reply({ embeds: [errorEmbed(`A leaderboard named \`${name}\` already exists in this server.`)], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed(`A leaderboard named \`${name}\` already exists in this server.`)],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -171,7 +193,10 @@ async function handleRemoveLeaderboard(
   client: BotClient,
 ): Promise<void> {
   if (!interaction.guildId) {
-    await interaction.reply({ embeds: [errorEmbed("This command can only be used in a server.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("This command can only be used in a server.")],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -185,7 +210,10 @@ async function handleRemoveLeaderboard(
     .get(interaction.guildId, name);
 
   if (!record) {
-    await interaction.reply({ embeds: [errorEmbed(`No custom leaderboard named \`${name}\` exists in this server.`)], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed(`No custom leaderboard named \`${name}\` exists in this server.`)],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -214,7 +242,10 @@ async function handleListLeaderboards(
   client: BotClient,
 ): Promise<void> {
   if (!interaction.guildId) {
-    await interaction.reply({ embeds: [errorEmbed("This command can only be used in a server.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("This command can only be used in a server.")],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -228,7 +259,13 @@ async function handleListLeaderboards(
     .all(interaction.guildId);
 
   if (leaderboards.length === 0) {
-    await interaction.reply({ embeds: [baseEmbed().setTitle("Custom Leaderboards").setDescription("No custom leaderboards are defined for this server.")] });
+    await interaction.reply({
+      embeds: [
+        baseEmbed()
+          .setTitle("Custom Leaderboards")
+          .setDescription("No custom leaderboards are defined for this server."),
+      ],
+    });
     return;
   }
 

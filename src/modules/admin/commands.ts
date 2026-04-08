@@ -17,10 +17,7 @@ export const settingsSlashCommand = new SlashCommandBuilder()
       .setName("prefix")
       .setDescription("Set the prefix for this server")
       .addStringOption((opt) =>
-        opt
-          .setName("prefix")
-          .setDescription("New prefix (e.g., !, ?, .)")
-          .setRequired(true),
+        opt.setName("prefix").setDescription("New prefix (e.g., !, ?, .)").setRequired(true),
       ),
   )
   .addSubcommand((sub) => sub.setName("info").setDescription("Show current bot settings"));
@@ -35,20 +32,22 @@ async function replySettingsInfo(
   respond: (embed: ReturnType<typeof baseEmbed>) => Promise<void>,
 ): Promise<void> {
   const prefix = getGuildPrefix(client, guildId);
-  const leaderboardCount = client.db
-    .query<{ count: number }, [string]>(
-      `SELECT COUNT(*) as count
+  const leaderboardCount =
+    client.db
+      .query<{ count: number }, [string]>(
+        `SELECT COUNT(*) as count
        FROM guild_leaderboards
        WHERE guild_id = ?`,
-    )
-    .get(guildId)?.count ?? 0;
-  const eventCount = client.db
-    .query<{ count: number }, [string]>(
-      `SELECT COUNT(*) as count
+      )
+      .get(guildId)?.count ?? 0;
+  const eventCount =
+    client.db
+      .query<{ count: number }, [string]>(
+        `SELECT COUNT(*) as count
        FROM emoji_events
        WHERE guild_id = ?`,
-    )
-    .get(guildId)?.count ?? 0;
+      )
+      .get(guildId)?.count ?? 0;
 
   await respond(
     baseEmbed()
@@ -66,7 +65,10 @@ async function handleSettingsSlashCommandInner(
   client: BotClient,
 ): Promise<void> {
   if (!interaction.guildId) {
-    await interaction.reply({ embeds: [errorEmbed("This command can only be used in a server.")], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed("This command can only be used in a server.")],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -74,7 +76,10 @@ async function handleSettingsSlashCommandInner(
   if (subcommand === "prefix") {
     const prefix = interaction.options.getString("prefix", true).trim();
     if (!isValidPrefix(prefix)) {
-      await interaction.reply({ embeds: [errorEmbed("Prefix must be 1-5 non-space characters.")], ephemeral: true });
+      await interaction.reply({
+        embeds: [errorEmbed("Prefix must be 1-5 non-space characters.")],
+        ephemeral: true,
+      });
       return;
     }
 
@@ -106,7 +111,11 @@ export async function handleSettingsPrefixCommand(
   if (subcommand === "prefix") {
     const prefix = args[1]?.trim();
     if (!prefix || !isValidPrefix(prefix)) {
-      await message.reply({ embeds: [errorEmbed("Usage: `settings prefix <new-prefix>` with 1-5 non-space characters.")] });
+      await message.reply({
+        embeds: [
+          errorEmbed("Usage: `settings prefix <new-prefix>` with 1-5 non-space characters."),
+        ],
+      });
       return;
     }
 

@@ -1,10 +1,5 @@
 import { mkdirSync, existsSync } from "node:fs";
-import {
-  Client,
-  Collection,
-  GatewayIntentBits,
-  Partials,
-} from "discord.js";
+import { Client, Collection, GatewayIntentBits, Partials } from "discord.js";
 import { Database } from "bun:sqlite";
 import type { Module, PrefixCommand } from "./core/module";
 
