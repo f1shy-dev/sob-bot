@@ -26,7 +26,6 @@ export function getCollectedLeaderboard(
        WHERE guild_id = ? AND emoji = ? AND created_at >= ?
          AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
        GROUP BY message_author_id
-       HAVING score > 0
        ORDER BY score DESC
        LIMIT ? OFFSET ?`,
     )
@@ -40,8 +39,8 @@ export function getCollectedLeaderboardCount(
   period: Period,
   selfReactPenalty: boolean,
 ): number {
+  const _selfReactPenalty = selfReactPenalty;
   const periodStart = getPeriodStart(period);
-  const selfReactValue = selfReactPenalty ? -1 : 0;
   const row = db
     .query<{ count: number }, [string, string, number]>(
       `SELECT COUNT(*) as count
@@ -51,7 +50,6 @@ export function getCollectedLeaderboardCount(
          WHERE guild_id = ? AND emoji = ? AND created_at >= ?
            AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
          GROUP BY message_author_id
-         HAVING SUM(CASE WHEN is_self_react = 1 THEN ${selfReactValue} ELSE 1 END) > 0
        )`,
     )
     .get(guildId, emoji, periodStart);
@@ -88,7 +86,6 @@ export function getMostReactedMessages(
        WHERE guild_id = ? AND emoji = ? AND created_at >= ?
          AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
        GROUP BY message_id, channel_id
-       HAVING reaction_count > 0
        ORDER BY reaction_count DESC
        LIMIT ? OFFSET ?`,
     )
@@ -102,8 +99,8 @@ export function getMostReactedMessagesCount(
   period: Period,
   selfReactPenalty: boolean,
 ): number {
+  const _selfReactPenalty = selfReactPenalty;
   const periodStart = getPeriodStart(period);
-  const selfReactValue = selfReactPenalty ? -1 : 0;
   const row = db
     .query<{ count: number }, [string, string, number]>(
       `SELECT COUNT(*) as count
@@ -113,7 +110,6 @@ export function getMostReactedMessagesCount(
          WHERE guild_id = ? AND emoji = ? AND created_at >= ?
            AND (bot_author_id IS NULL OR message_author_id != bot_author_id)
          GROUP BY message_id, channel_id
-         HAVING SUM(CASE WHEN is_self_react = 1 THEN ${selfReactValue} ELSE 1 END) > 0
          LIMIT 200
        )`,
     )
