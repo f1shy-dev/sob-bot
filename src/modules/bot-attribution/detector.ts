@@ -29,13 +29,13 @@ export async function detectAttribution(
   const reply = await detectReplyAttribution(message);
   if (reply) return reply;
 
+  const linkEmbed = detectLinkEmbed(client, message);
+  if (linkEmbed) return linkEmbed;
+
   if (!isFmbotMessage(client, message)) return null;
 
   const slash = detectSlash(message);
   if (slash) return slash;
-
-  const linkEmbed = detectLinkEmbed(client, message);
-  if (linkEmbed) return linkEmbed;
 
   const explicit = await detectExplicitText(message);
   if (explicit) return explicit;
@@ -56,13 +56,13 @@ export async function detectAttributionLate(
   const reply = await detectReplyAttribution(message);
   if (reply) return reply;
 
+  const linkEmbed = detectLinkEmbed(client, message);
+  if (linkEmbed) return linkEmbed;
+
   if (!isFmbotMessage(client, message)) return null;
 
   const slash = detectSlash(message);
   if (slash) return slash;
-
-  const linkEmbed = detectLinkEmbed(client, message);
-  if (linkEmbed) return linkEmbed;
 
   const explicit = await detectExplicitText(message);
   if (explicit) return explicit;
