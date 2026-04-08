@@ -1,9 +1,14 @@
 import type {
-  SlashCommandBuilder,
   Message,
   ClientEvents,
+  ChatInputCommandInteraction,
 } from "discord.js";
 import type { BotClient } from "../client";
+
+export interface SlashCommandDefinition {
+  name: string;
+  toJSON: () => unknown;
+}
 
 export interface PrefixCommand {
   aliases: string[];
@@ -18,11 +23,15 @@ export interface PrefixCommand {
 
 export interface Module {
   name: string;
-  slashCommands?: SlashCommandBuilder[];
+  slashCommands?: SlashCommandDefinition[];
   prefixCommands?: PrefixCommand[];
   events?: {
     event: keyof ClientEvents;
     handler: (client: BotClient, ...args: any[]) => Promise<void>;
   }[];
   onReady?: (client: BotClient) => Promise<void>;
+  handleSlashCommand?: (
+    interaction: ChatInputCommandInteraction,
+    client: BotClient,
+  ) => Promise<boolean>;
 }
