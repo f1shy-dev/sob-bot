@@ -3,7 +3,7 @@ import type { BotClient } from "../../client";
 import { getGuildPrefix } from "../../core/router";
 import { baseEmbed, errorEmbed } from "../../utils/embeds";
 import { extractEmoji } from "../../utils/emoji";
-import { parsePeriod, type Period } from "../../utils/time";
+import { isValidPeriodInput, parsePeriod, type Period } from "../../utils/time";
 import {
   getCollectedLeaderboard,
   getCollectedLeaderboardCount,
@@ -21,6 +21,12 @@ import { attachPagination, buildPaginationRow } from "./pagination";
 const PAGE_SIZE = 10;
 const MOST_REACTED_PAGE_SIZE = 1;
 const MAX_MOST_REACTED_MESSAGES = 5;
+const MOST_REACTED_PREVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const mostReactedPreviewCache = new Map<
+  string,
+  { expiresAt: number; value: MostReactedPreview | undefined }
+>();
 
 export const emojiLeaderboardSlashCommand = new SlashCommandBuilder()
   .setName("emojileaderboard")
@@ -99,24 +105,7 @@ function parseOptionalPeriodArg(input: string | undefined): Period | null {
   if (!input) return "weekly";
 
   const normalized = input.toLowerCase();
-  const validInputs = new Set([
-    "daily",
-    "day",
-    "today",
-    "d",
-    "weekly",
-    "week",
-    "w",
-    "monthly",
-    "month",
-    "m",
-    "alltime",
-    "all",
-    "a",
-    "all-time",
-  ]);
-
-  if (!validInputs.has(normalized)) return null;
+  if (!isValidPeriodInput(normalized)) return null;
   return parsePeriod(normalized);
 }
 
@@ -187,21 +176,61 @@ async function renderLeaderboardReply(
   });
 }
 
+function getMostReactedPreviewCacheKey(entry: {
+  channel_id: string;
+  message_id: string;
+}): string {
+  return `${entry.channel_id}:${entry.message_id}`;
+}
+
+function getCachedMostReactedPreview(entry: {
+  channel_id: string;
+  message_id: string;
+}): MostReactedPreview | undefined | null {
+  const key = getMostReactedPreviewCacheKey(entry);
+  const cached = mostReactedPreviewCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    mostReactedPreviewCache.delete(key);
+    return null;
+  }
+  return cached.value;
+}
+
+function setCachedMostReactedPreview(
+  entry: { channel_id: string; message_id: string },
+  value: MostReactedPreview | undefined,
+): void {
+  const key = getMostReactedPreviewCacheKey(entry);
+  mostReactedPreviewCache.set(key, {
+    value,
+    expiresAt: Date.now() + MOST_REACTED_PREVIEW_CACHE_TTL_MS,
+  });
+}
+
 async function buildMostReactedPreview(
   client: BotClient,
   entry: { channel_id: string; message_id: string },
 ): Promise<MostReactedPreview | undefined> {
+  const cached = getCachedMostReactedPreview(entry);
+  if (cached !== null) return cached;
+
   try {
     const channel = await client.channels.fetch(entry.channel_id);
-    if (!channel?.isTextBased() || !("messages" in channel)) return undefined;
+    if (!channel?.isTextBased() || !("messages" in channel)) {
+      setCachedMostReactedPreview(entry, undefined);
+      return undefined;
+    }
 
     const message = await channel.messages.fetch(entry.message_id);
     const text = message.content.trim();
     if (text) {
-      return {
+      const preview = {
         author: `<@${message.author.id}>`,
         text: truncate(text.replace(/\s+/g, " "), 280),
       };
+      setCachedMostReactedPreview(entry, preview);
+      return preview;
     }
 
     const embedText = message.embeds
@@ -210,18 +239,25 @@ async function buildMostReactedPreview(
       .join(" — ")
       .trim();
     if (embedText) {
-      return {
+      const preview = {
         author: `<@${message.author.id}>`,
         text: truncate(embedText.replace(/\s+/g, " "), 280),
       };
+      setCachedMostReactedPreview(entry, preview);
+      return preview;
     }
 
     if (message.attachments.size > 0) {
-      return { author: `<@${message.author.id}>`, text: "[attachment]" };
+      const preview = { author: `<@${message.author.id}>`, text: "[attachment]" };
+      setCachedMostReactedPreview(entry, preview);
+      return preview;
     }
 
-    return { author: `<@${message.author.id}>`, text: "[no preview available]" };
+    const preview = { author: `<@${message.author.id}>`, text: "[no preview available]" };
+    setCachedMostReactedPreview(entry, preview);
+    return preview;
   } catch {
+    setCachedMostReactedPreview(entry, undefined);
     return undefined;
   }
 }
@@ -392,7 +428,7 @@ export async function handleEmojiLeaderboardPrefixCommand(
         buildUsageEmbed(
           "Command Usage",
           `\`${prefix}emojileaderboard <emoji> [period]\``,
-          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime (default: weekly)",
+          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime, or custom like 30d / 12w / 6m / 2y (default: weekly)",
           `\`${prefix}emojileaderboard 😭\`\n\`${prefix}elb 😭 monthly\``,
         ),
       ],
@@ -407,7 +443,7 @@ export async function handleEmojiLeaderboardPrefixCommand(
         buildUsageEmbed(
           "Command Usage",
           `\`${prefix}emojileaderboard <emoji> [period]\``,
-          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime (default: weekly)",
+          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime, or custom like 30d / 12w / 6m / 2y (default: weekly)",
           `\`${prefix}emojileaderboard 😭\`\n\`${prefix}elb 😭 monthly\``,
         ),
       ],
@@ -442,7 +478,7 @@ export async function handleEmojiMostReactedPrefixCommand(
         buildUsageEmbed(
           "Command Usage",
           `\`${prefix}emojimostreacted <emoji> [period]\``,
-          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime (default: weekly)",
+          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime, or custom like 30d / 12w / 6m / 2y (default: weekly)",
           `\`${prefix}emojimostreacted 😭\`\n\`${prefix}emr 😭 monthly\``,
         ),
       ],
@@ -457,7 +493,7 @@ export async function handleEmojiMostReactedPrefixCommand(
         buildUsageEmbed(
           "Command Usage",
           `\`${prefix}emojimostreacted <emoji> [period]\``,
-          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime (default: weekly)",
+          "`emoji` — The emoji to show\n`period` — daily, weekly, monthly, alltime, or custom like 30d / 12w / 6m / 2y (default: weekly)",
           `\`${prefix}emojimostreacted 😭\`\n\`${prefix}emr 😭 monthly\``,
         ),
       ],
@@ -489,7 +525,9 @@ export async function handleDynamicLeaderboardPrefixCommand(
   if (period === null || args.length > 1) {
     await message.reply({
       embeds: [
-        errorEmbed("Usage: `[dynamic] [period]`. Valid periods: daily, weekly, monthly, alltime."),
+        errorEmbed(
+          "Usage: `[dynamic] [period]`. Valid periods: daily, weekly, monthly, alltime, or custom like 30d / 12w / 6m / 2y.",
+        ),
       ],
     });
     return;
@@ -519,7 +557,9 @@ export async function handleDynamicMostReactedPrefixCommand(
   if (period === null || args.length > 1) {
     await message.reply({
       embeds: [
-        errorEmbed("Usage: `[dynamic] [period]`. Valid periods: daily, weekly, monthly, alltime."),
+        errorEmbed(
+          "Usage: `[dynamic] [period]`. Valid periods: daily, weekly, monthly, alltime, or custom like 30d / 12w / 6m / 2y.",
+        ),
       ],
     });
     return;

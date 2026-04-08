@@ -1,6 +1,6 @@
 import { EmbedBuilder } from "discord.js";
 import { baseEmbed } from "../../utils/embeds";
-import { PERIOD_LABELS, type Period } from "../../utils/time";
+import { formatPeriodLabel, type Period } from "../../utils/time";
 import type { LeaderboardEntry, MostReactedMessage } from "../emoji-tracker/queries";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -28,7 +28,7 @@ export function buildLeaderboardEmbed(
           .join("\n");
 
   return baseEmbed()
-    .setTitle(`${emoji} Leaderboard — ${PERIOD_LABELS[period]}`)
+    .setTitle(`${emoji} Leaderboard — ${formatPeriodLabel(period)}`)
     .setDescription(description)
     .setFooter({ text: `Page ${page + 1}/${totalPages} • ${totalUsers} users tracked` });
 }
@@ -51,7 +51,7 @@ export function buildMostReactedEmbed(
 
   if (!entry) {
     return baseEmbed()
-      .setTitle(`${emoji} Hall of Fame — ${PERIOD_LABELS[period]}`)
+      .setTitle(`${emoji} Hall of Fame — ${formatPeriodLabel(period)}`)
       .setDescription("No messages found for this period.")
       .setFooter({ text: `Page ${page + 1}/${totalPages}` });
   }
@@ -68,7 +68,7 @@ export function buildMostReactedEmbed(
   ].filter(Boolean);
 
   return baseEmbed()
-    .setTitle(`${emoji} Hall of Fame — ${PERIOD_LABELS[period]}`)
+    .setTitle(`${emoji} Hall of Fame — ${formatPeriodLabel(period)}`)
     .setDescription(lines.join("\n"))
     .setFooter({ text: `Message ${page + 1}/${totalPages} • Top ${totalMessages}` });
 }
