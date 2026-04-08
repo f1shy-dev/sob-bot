@@ -1,4 +1,5 @@
 import {
+  AttachmentBuilder,
   ApplicationCommandType,
   ContextMenuCommandBuilder,
   PermissionFlagsBits,
@@ -456,7 +457,58 @@ export async function handleDebugMessageContextMenu(
   addDebugField(fields, "Created", `<t:${Math.floor(msg.createdTimestamp / 1000)}:F>`, true);
 
   const embed = baseEmbed().setTitle("🔍 Message Debug").addFields(fields);
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  const rawData = {
+    messageId: msg.id,
+    channelId: msg.channelId,
+    guildId: msg.guildId,
+    author: {
+      id: msg.author.id,
+      username: msg.author.username,
+      displayName: msg.author.displayName,
+      tag: msg.author.tag,
+      bot: msg.author.bot,
+    },
+    interactionMetadata: interactionUser
+      ? {
+          userId: interactionUser.id,
+          username: interactionUser.username,
+          tag: interactionUser.tag,
+        }
+      : null,
+    content: msg.content || null,
+    embeds: msg.embeds.map((e) => ({
+      title: e.title ?? null,
+      author: e.author
+        ? { name: e.author.name, url: e.author.url, iconURL: e.author.iconURL }
+        : null,
+      description: e.description ?? null,
+      fields: e.fields.map((f) => ({ name: f.name, value: f.value, inline: f.inline })),
+      footer: e.footer ? { text: e.footer.text, iconURL: e.footer.iconURL } : null,
+      color: e.color !== null ? `#${e.color.toString(16).padStart(6, "0")}` : null,
+      url: e.url ?? null,
+      image: e.image?.url ?? null,
+      thumbnail: e.thumbnail?.url ?? null,
+    })),
+    components: msg.components.map((row) => ({
+      type: row.type,
+      components: "components" in row ? row.components.map((c) => c.toJSON()) : [],
+    })),
+    attachments: msg.attachments.map((a) => ({
+      id: a.id,
+      name: a.name,
+      url: a.url,
+      contentType: a.contentType,
+      size: a.size,
+    })),
+    stickers: msg.stickers.map((s) => ({
+      id: s.id,
+      name: s.name,
+    })),
+    createdTimestamp: msg.createdTimestamp,
+  };
+  const jsonBuffer = Buffer.from(JSON.stringify(rawData, null, 2), "utf-8");
+  const attachment = new AttachmentBuilder(jsonBuffer, { name: `debug-${msg.id}.json` });
+  await interaction.reply({ embeds: [embed], files: [attachment], ephemeral: true });
   return true;
 }
 
