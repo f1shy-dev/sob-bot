@@ -2,7 +2,7 @@ import type { Message } from "discord.js";
 import type { BotClient } from "../../client";
 import { detectAttribution } from "./detector";
 import { recordPendingFmbotCommand, recordPendingLinks } from "./pending";
-import { storeAttribution } from "./queries";
+import { reconcileAttributedReactionEvents, storeAttribution } from "./queries";
 
 export async function handleMessageForAttribution(
   client: BotClient,
@@ -28,4 +28,5 @@ export async function handleMessageForAttribution(
     strategy: result.strategy,
     confidence: result.confidence,
   });
+  reconcileAttributedReactionEvents(client.db, message.id, message.author.id, result.userId);
 }

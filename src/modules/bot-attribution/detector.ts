@@ -26,13 +26,16 @@ export async function detectAttribution(
   client: BotClient,
   message: Message,
 ): Promise<AttributionResult | null> {
+  const reply = await detectReplyAttribution(message);
+  if (reply) return reply;
+
+  if (!isFmbotMessage(client, message)) return null;
+
   const slash = detectSlash(message);
   if (slash) return slash;
 
   const linkEmbed = detectLinkEmbed(client, message);
   if (linkEmbed) return linkEmbed;
-
-  if (!isFmbotMessage(client, message)) return null;
 
   const explicit = await detectExplicitText(message);
   if (explicit) return explicit;
@@ -50,13 +53,16 @@ export async function detectAttributionLate(
   client: BotClient,
   message: Message,
 ): Promise<AttributionResult | null> {
+  const reply = await detectReplyAttribution(message);
+  if (reply) return reply;
+
+  if (!isFmbotMessage(client, message)) return null;
+
   const slash = detectSlash(message);
   if (slash) return slash;
 
   const linkEmbed = detectLinkEmbed(client, message);
   if (linkEmbed) return linkEmbed;
-
-  if (!isFmbotMessage(client, message)) return null;
 
   const explicit = await detectExplicitText(message);
   if (explicit) return explicit;
@@ -64,7 +70,24 @@ export async function detectAttributionLate(
   const whoKnows = await detectWhoKnows(message);
   if (whoKnows) return whoKnows;
 
+  const correlation = detectLiveCorrelation(client, message);
+  if (correlation) return correlation;
+
   return null;
+}
+
+async function detectReplyAttribution(message: Message): Promise<AttributionResult | null> {
+  if (!message.guild || !message.author.bot || !message.reference?.messageId) return null;
+
+  try {
+    const referencedMessage = await message.fetchReference();
+    const referencedAuthor = referencedMessage.author;
+    if (!referencedAuthor || referencedAuthor.bot) return null;
+
+    return { userId: referencedAuthor.id, strategy: "reply", confidence: 0.95 };
+  } catch {
+    return null;
+  }
 }
 
 function detectSlash(message: Message): AttributionResult | null {

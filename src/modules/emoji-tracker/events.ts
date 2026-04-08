@@ -8,7 +8,11 @@ import type {
 import type { BotClient } from "../../client";
 import { formatReactionEmoji } from "../../utils/emoji";
 import { detectAttributionLate } from "../bot-attribution/detector";
-import { getAttribution, storeAttribution } from "../bot-attribution/queries";
+import {
+  getAttribution,
+  reconcileAttributedReactionEvents,
+  storeAttribution,
+} from "../bot-attribution/queries";
 
 async function resolveReaction(
   reaction: MessageReaction | PartialMessageReaction,
@@ -78,6 +82,12 @@ export async function handleReactionAdd(
     }
 
     if (attribution) {
+      reconcileAttributedReactionEvents(
+        client.db,
+        resolvedReaction.message.id,
+        rawAuthorId,
+        attribution.attributed_user_id,
+      );
       messageAuthorId = attribution.attributed_user_id;
     }
   }
@@ -113,22 +123,10 @@ export async function handleReactionAdd(
 }
 
 export async function handleReactionRemove(
-  client: BotClient,
-  reaction: MessageReaction | PartialMessageReaction,
-  user: User | PartialUser,
+  _client: BotClient,
+  _reaction: MessageReaction | PartialMessageReaction,
+  _user: User | PartialUser,
 ): Promise<void> {
-  if (user.bot) return;
-
-  const resolvedReaction = await resolveReaction(reaction);
-  if (!resolvedReaction || !resolvedReaction.message.guild) return;
-
-  const emoji = formatReactionEmoji(resolvedReaction.emoji);
-  if (!emoji) return;
-
-  client.db
-    .prepare(
-      `DELETE FROM reaction_events
-       WHERE guild_id = ? AND message_id = ? AND reactor_id = ? AND emoji = ?`,
-    )
-    .run(resolvedReaction.message.guild.id, resolvedReaction.message.id, user.id, emoji);
+  // Intentionally ignored: once a reaction has been tracked, removing it should not
+  // reduce historical counts. INSERT OR IGNORE on add still prevents repeat-reaction farming.
 }

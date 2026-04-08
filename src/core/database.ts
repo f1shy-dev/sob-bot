@@ -2,9 +2,6 @@ import type { Database } from "bun:sqlite";
 
 export function initializeDatabase(db: Database): void {
   db.exec(`
-    DROP TABLE IF EXISTS emoji_events;
-    DROP TABLE IF EXISTS guild_leaderboards;
-
     CREATE TABLE IF NOT EXISTS reaction_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       guild_id TEXT NOT NULL,

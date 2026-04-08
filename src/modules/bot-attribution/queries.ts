@@ -41,6 +41,20 @@ export function storeAttribution(db: Database, attribution: StoredAttribution): 
   );
 }
 
+export function reconcileAttributedReactionEvents(
+  db: Database,
+  messageId: string,
+  botUserId: string,
+  attributedUserId: string,
+): void {
+  db.prepare(
+    `UPDATE reaction_events
+     SET message_author_id = ?,
+         is_self_react = CASE WHEN reactor_id = ? THEN 1 ELSE 0 END
+     WHERE message_id = ? AND bot_author_id = ?`,
+  ).run(attributedUserId, attributedUserId, messageId, botUserId);
+}
+
 export function getAttribution(db: Database, messageId: string): AttributionRow | null {
   return (
     db
