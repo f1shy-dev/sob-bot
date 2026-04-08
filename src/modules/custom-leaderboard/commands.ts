@@ -3,12 +3,14 @@ import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type GuildMember,
+  type Message,
 } from "discord.js";
 import type { BotClient } from "../../client";
-import { getGuildLeaderboardAliases } from "../../core/router";
+import { getGuildLeaderboards, getGuildPrefix } from "../../core/router";
 import { baseEmbed, errorEmbed, successEmbed } from "../../utils/embeds";
 import { extractEmoji } from "../../utils/emoji";
 import { isAdmin } from "../../utils/permissions";
+import { generateAliases } from "../../utils/words";
 import { registerGuildLeaderboardCommands } from "./sync";
 
 export const defineLeaderboardSlashCommand = new SlashCommandBuilder()
@@ -16,35 +18,25 @@ export const defineLeaderboardSlashCommand = new SlashCommandBuilder()
   .setDescription("Define a custom emoji leaderboard for this server")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((opt) =>
-    opt.setName("name").setDescription("Leaderboard name (e.g., sob)").setRequired(true),
+    opt.setName("word").setDescription("Word used to generate aliases").setRequired(true),
   )
   .addStringOption((opt) =>
     opt.setName("emoji").setDescription("The emoji to track").setRequired(true),
-  )
-  .addStringOption((opt) =>
-    opt
-      .setName("aliases")
-      .setDescription("Comma-separated command aliases (e.g., soblb,sobleaderboard,sobs)")
-      .setRequired(true),
   );
 
 export const removeLeaderboardSlashCommand = new SlashCommandBuilder()
   .setName("remove-leaderboard")
   .setDescription("Remove a custom leaderboard")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addStringOption((opt) =>
-    opt.setName("name").setDescription("Leaderboard name to remove").setRequired(true),
-  );
+  .addStringOption((opt) => opt.setName("word").setDescription("Word to remove").setRequired(true));
 
 export const listLeaderboardsSlashCommand = new SlashCommandBuilder()
   .setName("list-leaderboards")
   .setDescription("Show all custom leaderboards in this server");
 
 interface GuildLeaderboardRecord {
-  id: number;
-  name: string;
+  word: string;
   emoji: string;
-  aliases: string;
 }
 
 function parseSingleEmoji(input: string): string | null {
@@ -54,27 +46,121 @@ function parseSingleEmoji(input: string): string | null {
   return matches[0] === trimmed ? matches[0] : null;
 }
 
-function parseAliases(raw: string): string[] {
-  return [
-    ...new Set(
-      raw
-        .split(",")
-        .map((alias) => alias.trim().toLowerCase())
-        .filter((alias) => /^[\w-]{1,32}$/.test(alias)),
-    ),
-  ];
-}
-
 function getGlobalCommandNames(client: BotClient): Set<string> {
   const names = new Set<string>(client.prefixCommands.map((_, key) => key.toLowerCase()));
-
   for (const module of client.modules.values()) {
     for (const command of module.slashCommands ?? []) {
       names.add(command.name.toLowerCase());
     }
   }
-
   return names;
+}
+
+function usageEmbed(prefix: string, syntax: string, argumentsValue: string, examplesValue: string) {
+  return baseEmbed()
+    .setTitle("Command Usage")
+    .setDescription(`\`${prefix}${syntax}\``)
+    .addFields(
+      { name: "Arguments", value: argumentsValue },
+      { name: "Examples", value: examplesValue },
+    );
+}
+
+function leaderboardAliasFields(word: string) {
+  const aliases = generateAliases(word);
+  return [
+    { name: "Leaderboard aliases", value: aliases.leaderboard.join(", "), inline: false },
+    { name: "Most-reacted aliases", value: aliases.mostReacted.join(", "), inline: false },
+  ];
+}
+
+async function createLeaderboard(
+  client: BotClient,
+  guildId: string,
+  wordInput: string,
+  emojiInput: string,
+  createdBy: string,
+): Promise<{ ok: true; word: string; emoji: string } | { ok: false; message: string }> {
+  const word = wordInput.trim().toLowerCase();
+  const emoji = parseSingleEmoji(emojiInput);
+
+  if (!/^[a-z]{1,20}$/.test(word)) {
+    return { ok: false, message: "Word must match `/^[a-z]{1,20}$/`." };
+  }
+
+  if (!emoji) {
+    return { ok: false, message: "Please provide a single valid emoji." };
+  }
+
+  const generated = generateAliases(word);
+  const globalCommandNames = getGlobalCommandNames(client);
+  const takenAliases = new Set<string>();
+
+  for (const leaderboard of getGuildLeaderboards(client, guildId)) {
+    const aliases = generateAliases(leaderboard.word);
+    for (const alias of [...aliases.leaderboard, ...aliases.mostReacted]) {
+      takenAliases.add(alias);
+    }
+  }
+
+  for (const alias of [...generated.leaderboard, ...generated.mostReacted]) {
+    if (globalCommandNames.has(alias)) {
+      return { ok: false, message: `Alias \`${alias}\` conflicts with an existing bot command.` };
+    }
+    if (takenAliases.has(alias)) {
+      return {
+        ok: false,
+        message: `Alias \`${alias}\` is already used by another custom leaderboard in this server.`,
+      };
+    }
+  }
+
+  const existing = client.db
+    .query<{ word: string }, [string, string]>(
+      `SELECT word FROM guild_leaderboards WHERE guild_id = ? AND word = ?`,
+    )
+    .get(guildId, word);
+
+  if (existing) {
+    return { ok: false, message: `A leaderboard for \`${word}\` already exists in this server.` };
+  }
+
+  client.db
+    .prepare(
+      `INSERT INTO guild_leaderboards (guild_id, word, emoji, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(guildId, word, emoji, createdBy, Math.floor(Date.now() / 1000));
+
+  await registerGuildLeaderboardCommands(client, guildId);
+  return { ok: true, word, emoji };
+}
+
+async function removeLeaderboard(client: BotClient, guildId: string, wordInput: string) {
+  const word = wordInput.trim().toLowerCase();
+  if (!/^[a-z]{1,20}$/.test(word)) {
+    return { ok: false as const, message: "Word must match `/^[a-z]{1,20}$/`." };
+  }
+
+  const record = client.db
+    .query<GuildLeaderboardRecord, [string, string]>(
+      `SELECT word, emoji FROM guild_leaderboards WHERE guild_id = ? AND word = ?`,
+    )
+    .get(guildId, word);
+
+  if (!record) {
+    return {
+      ok: false as const,
+      message: `No custom leaderboard for \`${word}\` exists in this server.`,
+    };
+  }
+
+  client.db
+    .prepare(`DELETE FROM guild_leaderboards WHERE guild_id = ? AND word = ?`)
+    .run(guildId, word);
+
+  await registerGuildLeaderboardCommands(client, guildId);
+  return { ok: true as const, record };
 }
 
 async function handleDefineLeaderboard(
@@ -88,7 +174,6 @@ async function handleDefineLeaderboard(
     });
     return;
   }
-
   if (!isAdmin(interaction.user.id, interaction.member as GuildMember | null)) {
     await interaction.reply({
       embeds: [errorEmbed("You need Administrator permission to use this command.")],
@@ -97,102 +182,25 @@ async function handleDefineLeaderboard(
     return;
   }
 
-  const name = interaction.options.getString("name", true).trim().toLowerCase();
-  const emoji = parseSingleEmoji(interaction.options.getString("emoji", true));
-  const aliases = parseAliases(interaction.options.getString("aliases", true));
-
-  if (!/^[\w-]{1,32}$/.test(name)) {
-    await interaction.reply({
-      embeds: [
-        errorEmbed("Leaderboard name must be 1-32 characters using letters, numbers, `_`, or `-`."),
-      ],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (!emoji) {
-    await interaction.reply({
-      embeds: [errorEmbed("Please provide a single valid emoji.")],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (aliases.length === 0) {
-    await interaction.reply({
-      embeds: [errorEmbed("Provide at least one valid alias using letters, numbers, `_`, or `-`.")],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const globalCommandNames = getGlobalCommandNames(client);
-  const guildLeaderboards = getGuildLeaderboardAliases(client, interaction.guildId);
-  const takenAliases = new Set(
-    guildLeaderboards.flatMap((leaderboard) =>
-      leaderboard.aliases.map((alias) => alias.toLowerCase()),
-    ),
+  const result = await createLeaderboard(
+    client,
+    interaction.guildId,
+    interaction.options.getString("word", true),
+    interaction.options.getString("emoji", true),
+    interaction.user.id,
   );
 
-  for (const alias of aliases) {
-    if (globalCommandNames.has(alias)) {
-      await interaction.reply({
-        embeds: [errorEmbed(`Alias \`${alias}\` conflicts with an existing bot command.`)],
-        ephemeral: true,
-      });
-      return;
-    }
-
-    if (takenAliases.has(alias)) {
-      await interaction.reply({
-        embeds: [
-          errorEmbed(
-            `Alias \`${alias}\` is already used by another custom leaderboard in this server.`,
-          ),
-        ],
-        ephemeral: true,
-      });
-      return;
-    }
-  }
-
-  const existing = client.db
-    .query<{ id: number }, [string, string]>(
-      `SELECT id FROM guild_leaderboards
-       WHERE guild_id = ? AND name = ?`,
-    )
-    .get(interaction.guildId, name);
-
-  if (existing) {
-    await interaction.reply({
-      embeds: [errorEmbed(`A leaderboard named \`${name}\` already exists in this server.`)],
-      ephemeral: true,
-    });
+  if (!result.ok) {
+    await interaction.reply({ embeds: [errorEmbed(result.message)], ephemeral: true });
     return;
   }
-
-  client.db
-    .prepare(
-      `INSERT INTO guild_leaderboards (guild_id, name, emoji, aliases, created_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      interaction.guildId,
-      name,
-      emoji,
-      JSON.stringify(aliases),
-      interaction.user.id,
-      Math.floor(Date.now() / 1000),
-    );
-
-  await registerGuildLeaderboardCommands(client, interaction.guildId);
 
   await interaction.reply({
     embeds: [
-      successEmbed(`Created leaderboard \`${name}\` for ${emoji}.`).addFields(
-        { name: "Emoji", value: emoji, inline: true },
-        { name: "Aliases", value: aliases.map((alias) => `/${alias}`).join(", "), inline: false },
+      successEmbed(`Created leaderboard for \`${result.word}\` (${result.emoji}).`).addFields(
+        { name: "Word", value: result.word, inline: true },
+        { name: "Emoji", value: result.emoji, inline: true },
+        ...leaderboardAliasFields(result.word),
       ),
     ],
   });
@@ -209,7 +217,6 @@ async function handleRemoveLeaderboard(
     });
     return;
   }
-
   if (!isAdmin(interaction.user.id, interaction.member as GuildMember | null)) {
     await interaction.reply({
       embeds: [errorEmbed("You need Administrator permission to use this command.")],
@@ -218,66 +225,34 @@ async function handleRemoveLeaderboard(
     return;
   }
 
-  const name = interaction.options.getString("name", true).trim().toLowerCase();
-  const record = client.db
-    .query<GuildLeaderboardRecord, [string, string]>(
-      `SELECT id, name, emoji, aliases
-       FROM guild_leaderboards
-       WHERE guild_id = ? AND name = ?`,
-    )
-    .get(interaction.guildId, name);
-
-  if (!record) {
-    await interaction.reply({
-      embeds: [errorEmbed(`No custom leaderboard named \`${name}\` exists in this server.`)],
-      ephemeral: true,
-    });
+  const result = await removeLeaderboard(
+    client,
+    interaction.guildId,
+    interaction.options.getString("word", true),
+  );
+  if (!result.ok) {
+    await interaction.reply({ embeds: [errorEmbed(result.message)], ephemeral: true });
     return;
   }
 
-  client.db
-    .prepare(
-      `DELETE FROM guild_leaderboards
-       WHERE guild_id = ? AND name = ?`,
-    )
-    .run(interaction.guildId, name);
-
-  await registerGuildLeaderboardCommands(client, interaction.guildId);
-
-  const aliases = JSON.parse(record.aliases) as string[];
   await interaction.reply({
     embeds: [
-      successEmbed(`Removed leaderboard \`${record.name}\`.`).addFields(
-        { name: "Emoji", value: record.emoji, inline: true },
-        { name: "Aliases", value: aliases.join(", ") || "None", inline: false },
+      successEmbed(`Removed leaderboard for \`${result.record.word}\`.`).addFields(
+        { name: "Emoji", value: result.record.emoji, inline: true },
+        ...leaderboardAliasFields(result.record.word),
       ),
     ],
   });
 }
 
-async function handleListLeaderboards(
-  interaction: ChatInputCommandInteraction,
+async function sendListLeaderboards(
+  guildId: string,
   client: BotClient,
+  respond: (payload: { embeds: ReturnType<typeof baseEmbed>[] }) => Promise<void>,
 ): Promise<void> {
-  if (!interaction.guildId) {
-    await interaction.reply({
-      embeds: [errorEmbed("This command can only be used in a server.")],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const leaderboards = client.db
-    .query<GuildLeaderboardRecord, [string]>(
-      `SELECT id, name, emoji, aliases
-       FROM guild_leaderboards
-       WHERE guild_id = ?
-       ORDER BY name ASC`,
-    )
-    .all(interaction.guildId);
-
+  const leaderboards = getGuildLeaderboards(client, guildId);
   if (leaderboards.length === 0) {
-    await interaction.reply({
+    await respond({
       embeds: [
         baseEmbed()
           .setTitle("Custom Leaderboards")
@@ -287,17 +262,15 @@ async function handleListLeaderboards(
     return;
   }
 
-  await interaction.reply({
+  await respond({
     embeds: [
       baseEmbed()
         .setTitle("Custom Leaderboards")
         .setDescription(
           leaderboards
             .map((leaderboard) => {
-              const aliases = (JSON.parse(leaderboard.aliases) as string[])
-                .map((alias) => `/${alias}`)
-                .join(", ");
-              return `**${leaderboard.name}** — ${leaderboard.emoji}\nAliases: ${aliases || "None"}`;
+              const aliases = generateAliases(leaderboard.word);
+              return `**${leaderboard.word}** — ${leaderboard.emoji}\nLeaderboard: ${aliases.leaderboard.join(", ")}\nMost-reacted: ${aliases.mostReacted.join(", ")}`;
             })
             .join("\n\n"),
         ),
@@ -305,10 +278,128 @@ async function handleListLeaderboards(
   });
 }
 
+export async function handleDefineLeaderboardPrefixCommand(
+  message: Message,
+  args: string[],
+  client: BotClient,
+): Promise<void> {
+  if (!message.guild) return;
+  const prefix = getGuildPrefix(client, message.guild.id);
+
+  if (args.length !== 2) {
+    await message.reply({
+      embeds: [
+        usageEmbed(
+          prefix,
+          "define-leaderboard <word> <emoji>",
+          "`word` — Lowercase letters only, 1-20 chars\n`emoji` — A single emoji",
+          `\`${prefix}define-leaderboard sob 😭\`\n\`${prefix}deflb sob 😭\``,
+        ),
+      ],
+    });
+    return;
+  }
+
+  const result = await createLeaderboard(
+    client,
+    message.guild.id,
+    args[0],
+    args[1],
+    message.author.id,
+  );
+  if (!result.ok) {
+    await message.reply({ embeds: [errorEmbed(result.message)] });
+    return;
+  }
+
+  await message.reply({
+    embeds: [
+      successEmbed(`Created leaderboard for \`${result.word}\` (${result.emoji}).`).addFields(
+        ...leaderboardAliasFields(result.word),
+      ),
+    ],
+  });
+}
+
+export async function handleRemoveLeaderboardPrefixCommand(
+  message: Message,
+  args: string[],
+  client: BotClient,
+): Promise<void> {
+  if (!message.guild) return;
+  const prefix = getGuildPrefix(client, message.guild.id);
+
+  if (args.length !== 1) {
+    await message.reply({
+      embeds: [
+        usageEmbed(
+          prefix,
+          "remove-leaderboard <word>",
+          "`word` — Lowercase letters only, 1-20 chars",
+          `\`${prefix}remove-leaderboard sob\`\n\`${prefix}rmlb sob\``,
+        ),
+      ],
+    });
+    return;
+  }
+
+  const result = await removeLeaderboard(client, message.guild.id, args[0]);
+  if (!result.ok) {
+    await message.reply({ embeds: [errorEmbed(result.message)] });
+    return;
+  }
+
+  await message.reply({
+    embeds: [successEmbed(`Removed leaderboard for \`${result.record.word}\`.`)],
+  });
+}
+
+export async function handleListLeaderboardsPrefixCommand(
+  message: Message,
+  args: string[],
+  client: BotClient,
+): Promise<void> {
+  if (!message.guild) return;
+  const prefix = getGuildPrefix(client, message.guild.id);
+
+  if (args.length !== 0) {
+    await message.reply({
+      embeds: [
+        usageEmbed(
+          prefix,
+          "list-leaderboards",
+          "This command takes no arguments.",
+          `\`${prefix}list-leaderboards\`\n\`${prefix}listlb\``,
+        ),
+      ],
+    });
+    return;
+  }
+
+  await sendListLeaderboards(message.guild.id, client, async (payload) => {
+    await message.reply(payload);
+  });
+}
+
 export async function handleCustomLeaderboardSlashCommand(
   interaction: ChatInputCommandInteraction,
   client: BotClient,
 ): Promise<boolean> {
+  if (!interaction.guildId) {
+    if (
+      ["define-leaderboard", "remove-leaderboard", "list-leaderboards"].includes(
+        interaction.commandName,
+      )
+    ) {
+      await interaction.reply({
+        embeds: [errorEmbed("This command can only be used in a server.")],
+        ephemeral: true,
+      });
+      return true;
+    }
+    return false;
+  }
+
   switch (interaction.commandName) {
     case "define-leaderboard":
       await handleDefineLeaderboard(interaction, client);
@@ -317,7 +408,9 @@ export async function handleCustomLeaderboardSlashCommand(
       await handleRemoveLeaderboard(interaction, client);
       return true;
     case "list-leaderboards":
-      await handleListLeaderboards(interaction, client);
+      await sendListLeaderboards(interaction.guildId, client, async (payload) => {
+        await interaction.reply(payload);
+      });
       return true;
     default:
       return false;

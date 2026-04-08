@@ -1,15 +1,22 @@
 import type { Message } from "discord.js";
 import type { BotClient } from "../client";
 import { config } from "../config";
-import { handleDynamicLeaderboardPrefixCommand } from "../modules/leaderboard/commands";
+import {
+  handleDynamicLeaderboardPrefixCommand,
+  handleDynamicMostReactedPrefixCommand,
+} from "../modules/leaderboard/commands";
 import { errorEmbed } from "../utils/embeds";
 import { isAdmin } from "../utils/permissions";
+import { generateAliases } from "../utils/words";
 
 interface GuildLeaderboardRow {
-  name: string;
+  word: string;
   emoji: string;
-  aliases: string;
 }
+
+export type DynamicMatch =
+  | { type: "leaderboard"; emoji: string; word: string }
+  | { type: "mostReacted"; emoji: string; word: string };
 
 export function getGuildPrefix(client: BotClient, guildId: string): string {
   const row = client.db
@@ -18,50 +25,38 @@ export function getGuildPrefix(client: BotClient, guildId: string): string {
   return row?.prefix ?? config.defaultPrefix;
 }
 
-export function getGuildLeaderboardAliases(
+export function getGuildLeaderboards(
   client: BotClient,
   guildId: string,
-): Array<{ name: string; emoji: string; aliases: string[] }> {
-  const rows = client.db
+): Array<{ word: string; emoji: string }> {
+  return client.db
     .query<GuildLeaderboardRow, [string]>(
-      `SELECT name, emoji, aliases
+      `SELECT word, emoji
        FROM guild_leaderboards
-       WHERE guild_id = ?`,
+       WHERE guild_id = ?
+       ORDER BY word ASC`,
     )
     .all(guildId);
-
-  return rows.map((row) => {
-    let aliases: string[] = [];
-
-    try {
-      const parsed = JSON.parse(row.aliases);
-      if (Array.isArray(parsed)) {
-        aliases = parsed
-          .filter((alias): alias is string => typeof alias === "string")
-          .map((alias) => alias.toLowerCase());
-      }
-    } catch {
-      aliases = [];
-    }
-
-    return {
-      name: row.name,
-      emoji: row.emoji,
-      aliases,
-    };
-  });
 }
 
-export function getDynamicLeaderboardByAlias(
+export function getDynamicCommandByAlias(
   client: BotClient,
   guildId: string,
   alias: string,
-): { name: string; emoji: string; aliases: string[] } | null {
-  return (
-    getGuildLeaderboardAliases(client, guildId).find((leaderboard) =>
-      leaderboard.aliases.includes(alias.toLowerCase()),
-    ) ?? null
-  );
+): DynamicMatch | null {
+  const normalized = alias.toLowerCase();
+
+  for (const leaderboard of getGuildLeaderboards(client, guildId)) {
+    const aliases = generateAliases(leaderboard.word);
+    if (aliases.leaderboard.includes(normalized)) {
+      return { type: "leaderboard", emoji: leaderboard.emoji, word: leaderboard.word };
+    }
+    if (aliases.mostReacted.includes(normalized)) {
+      return { type: "mostReacted", emoji: leaderboard.emoji, word: leaderboard.word };
+    }
+  }
+
+  return null;
 }
 
 export async function handlePrefixCommand(client: BotClient, message: Message): Promise<void> {
@@ -75,11 +70,22 @@ export async function handlePrefixCommand(client: BotClient, message: Message): 
   if (!commandName) return;
 
   const command = client.prefixCommands.get(commandName);
-  const dynamicLeaderboard = command
+  const dynamicMatch = command
     ? null
-    : getDynamicLeaderboardByAlias(client, message.guild.id, commandName);
+    : getDynamicCommandByAlias(client, message.guild.id, commandName);
 
-  if (!command && !dynamicLeaderboard) return;
+  if (!command && !dynamicMatch) {
+    await message
+      .reply({
+        embeds: [
+          errorEmbed(
+            `Unknown command \`${prefix}${commandName}\`. Use \`${prefix}help\` to see available commands.`,
+          ),
+        ],
+      })
+      .catch(() => {});
+    return;
+  }
 
   if (command?.adminOnly && !isAdmin(message.author.id, message.member)) {
     await message
@@ -94,8 +100,13 @@ export async function handlePrefixCommand(client: BotClient, message: Message): 
       return;
     }
 
-    if (dynamicLeaderboard) {
-      await handleDynamicLeaderboardPrefixCommand(message, args, client, dynamicLeaderboard);
+    if (dynamicMatch?.type === "leaderboard") {
+      await handleDynamicLeaderboardPrefixCommand(message, args, client, dynamicMatch);
+      return;
+    }
+
+    if (dynamicMatch?.type === "mostReacted") {
+      await handleDynamicMostReactedPrefixCommand(message, args, client, dynamicMatch);
     }
   } catch (error) {
     console.error(`Prefix command error [${commandName}]:`, error);

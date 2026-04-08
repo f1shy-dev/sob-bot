@@ -2,12 +2,16 @@ import { Collection, Events, REST, Routes } from "discord.js";
 import { BotClient } from "./client";
 import { config, validateConfig } from "./config";
 import { initializeDatabase } from "./core/database";
-import { getDynamicLeaderboardByAlias, handlePrefixCommand } from "./core/router";
+import { getDynamicCommandByAlias, handlePrefixCommand } from "./core/router";
 import type { Module } from "./core/module";
 import { adminModule } from "./modules/admin";
 import { customLeaderboardModule } from "./modules/custom-leaderboard";
 import { emojiTrackerModule } from "./modules/emoji-tracker";
-import { handleDynamicLeaderboardSlashCommand } from "./modules/leaderboard/commands";
+import { helpModule } from "./modules/help";
+import {
+  handleDynamicLeaderboardSlashCommand,
+  handleDynamicMostReactedSlashCommand,
+} from "./modules/leaderboard/commands";
 import { leaderboardModule } from "./modules/leaderboard";
 import { errorEmbed } from "./utils/embeds";
 import { scheduleS3Backup } from "./utils/s3-backup";
@@ -17,6 +21,7 @@ const modules: Module[] = [
   leaderboardModule,
   customLeaderboardModule,
   adminModule,
+  helpModule,
 ];
 
 async function main(): Promise<void> {
@@ -59,14 +64,19 @@ async function main(): Promise<void> {
       }
 
       if (interaction.guildId) {
-        const dynamicLeaderboard = getDynamicLeaderboardByAlias(
+        const dynamicMatch = getDynamicCommandByAlias(
           client,
           interaction.guildId,
           interaction.commandName,
         );
 
-        if (dynamicLeaderboard) {
-          await handleDynamicLeaderboardSlashCommand(interaction, client, dynamicLeaderboard);
+        if (dynamicMatch?.type === "leaderboard") {
+          await handleDynamicLeaderboardSlashCommand(interaction, client, dynamicMatch);
+          return;
+        }
+
+        if (dynamicMatch?.type === "mostReacted") {
+          await handleDynamicMostReactedSlashCommand(interaction, client, dynamicMatch);
           return;
         }
       }
