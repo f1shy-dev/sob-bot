@@ -44,4 +44,13 @@ export function initializeDatabase(db: Database): void {
       self_react_penalty INTEGER NOT NULL DEFAULT 1
     );
   `);
+
+  const safeAddColumn = (table: string, column: string, type: string) => {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    } catch {}
+  };
+
+  safeAddColumn("guild_settings", "fmbot_user_id", "TEXT");
+  safeAddColumn("guild_settings", "fmbot_prefix", "TEXT");
 }

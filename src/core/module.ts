@@ -1,4 +1,9 @@
-import type { Message, ClientEvents, ChatInputCommandInteraction } from "discord.js";
+import type {
+  Message,
+  ClientEvents,
+  ChatInputCommandInteraction,
+  MessageContextMenuCommandInteraction,
+} from "discord.js";
 import type { BotClient } from "../client";
 
 export interface SlashCommandDefinition {
@@ -24,6 +29,10 @@ export interface Module {
   onReady?: (client: BotClient) => Promise<void>;
   handleSlashCommand?: (
     interaction: ChatInputCommandInteraction,
+    client: BotClient,
+  ) => Promise<boolean>;
+  handleContextMenuCommand?: (
+    interaction: MessageContextMenuCommandInteraction,
     client: BotClient,
   ) => Promise<boolean>;
 }
