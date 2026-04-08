@@ -54,51 +54,86 @@ async function main(): Promise<void> {
   client.on(Events.MessageCreate, (message) => void handlePrefixCommand(client, message));
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-
-    try {
-      for (const mod of client.modules.values()) {
-        if (mod.handleSlashCommand && (await mod.handleSlashCommand(interaction, client))) {
-          return;
-        }
-      }
-
-      if (interaction.guildId) {
-        const dynamicMatch = getDynamicCommandByAlias(
-          client,
-          interaction.guildId,
-          interaction.commandName,
-        );
-
-        if (dynamicMatch?.type === "leaderboard") {
-          await handleDynamicLeaderboardSlashCommand(interaction, client, dynamicMatch);
-          return;
+    if (interaction.isChatInputCommand()) {
+      try {
+        for (const mod of client.modules.values()) {
+          if (mod.handleSlashCommand && (await mod.handleSlashCommand(interaction, client))) {
+            return;
+          }
         }
 
-        if (dynamicMatch?.type === "mostReacted") {
-          await handleDynamicMostReactedSlashCommand(interaction, client, dynamicMatch);
-          return;
-        }
-      }
+        if (interaction.guildId) {
+          const dynamicMatch = getDynamicCommandByAlias(
+            client,
+            interaction.guildId,
+            interaction.commandName,
+          );
 
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          embeds: [errorEmbed(`No handler found for command \`${interaction.commandName}\`.`)],
+          if (dynamicMatch?.type === "leaderboard") {
+            await handleDynamicLeaderboardSlashCommand(interaction, client, dynamicMatch);
+            return;
+          }
+
+          if (dynamicMatch?.type === "mostReacted") {
+            await handleDynamicMostReactedSlashCommand(interaction, client, dynamicMatch);
+            return;
+          }
+        }
+
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            embeds: [errorEmbed(`No handler found for command \`${interaction.commandName}\`.`)],
+            ephemeral: true,
+          });
+        }
+      } catch (error) {
+        console.error(`Slash command error [${interaction.commandName}]:`, error);
+
+        const payload = {
+          embeds: [errorEmbed("Something went wrong executing that command.")],
           ephemeral: true,
-        });
+        };
+
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp(payload).catch(() => {});
+        } else {
+          await interaction.reply(payload).catch(() => {});
+        }
       }
-    } catch (error) {
-      console.error(`Slash command error [${interaction.commandName}]:`, error);
+    }
 
-      const payload = {
-        embeds: [errorEmbed("Something went wrong executing that command.")],
-        ephemeral: true,
-      };
+    if (interaction.isMessageContextMenuCommand()) {
+      try {
+        for (const mod of client.modules.values()) {
+          if (
+            mod.handleContextMenuCommand &&
+            (await mod.handleContextMenuCommand(interaction, client))
+          ) {
+            return;
+          }
+        }
 
-      if (interaction.deferred || interaction.replied) {
-        await interaction.followUp(payload).catch(() => {});
-      } else {
-        await interaction.reply(payload).catch(() => {});
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            embeds: [
+              errorEmbed(
+                `No handler found for context menu command \`${interaction.commandName}\`.`,
+              ),
+            ],
+            ephemeral: true,
+          });
+        }
+      } catch (error) {
+        console.error(`Context menu command error [${interaction.commandName}]:`, error);
+        const payload = {
+          embeds: [errorEmbed("Something went wrong executing that command.")],
+          ephemeral: true,
+        };
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp(payload).catch(() => {});
+        } else {
+          await interaction.reply(payload).catch(() => {});
+        }
       }
     }
   });

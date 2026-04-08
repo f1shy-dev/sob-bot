@@ -1,13 +1,15 @@
 import type { Module } from "../../core/module";
 import {
+  debugMessageContextMenu,
   handleAdminSlashCommand,
+  handleDebugMessageContextMenu,
   handleSettingsPrefixCommand,
   settingsSlashCommand,
 } from "./commands";
 
 export const adminModule: Module = {
   name: "admin",
-  slashCommands: [settingsSlashCommand],
+  slashCommands: [settingsSlashCommand, debugMessageContextMenu],
   prefixCommands: [
     {
       aliases: ["settings"],
@@ -17,4 +19,5 @@ export const adminModule: Module = {
     },
   ],
   handleSlashCommand: handleAdminSlashCommand,
+  handleContextMenuCommand: handleDebugMessageContextMenu,
 };

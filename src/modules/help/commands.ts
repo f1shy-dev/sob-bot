@@ -44,6 +44,8 @@ function buildHelpEmbed(client: BotClient, guildId: string, admin: boolean) {
       value: [
         "`settings prefix <new-prefix>` — Set server prefix",
         "`settings selfreact <on|off>` — Toggle self-react penalty",
+        "`settings fmbot <@bot>` — Set fmbot bot user for attribution",
+        "`settings fmbot-prefix <prefix>` — Set fmbot command prefix",
         "`settings info` — Show current settings",
         "`define-leaderboard <word> <emoji>` — Create a custom leaderboard",
         "`remove-leaderboard <word>` — Remove a custom leaderboard",
