@@ -1,0 +1,18 @@
+{
+  "name": "sob-bot",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "deploy-commands": "bun run src/deploy-commands.ts"
+  },
+  "dependencies": {
+    "discord.js": "^14.26.2",
+    "@aws-sdk/client-s3": "^3.777.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}
