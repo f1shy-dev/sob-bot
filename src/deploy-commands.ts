@@ -3,9 +3,16 @@ import { config, validateConfig } from "./config";
 import { adminModule } from "./modules/admin";
 import { customLeaderboardModule } from "./modules/custom-leaderboard";
 import { emojiTrackerModule } from "./modules/emoji-tracker";
+import { helpModule } from "./modules/help";
 import { leaderboardModule } from "./modules/leaderboard";
 
-const modules = [emojiTrackerModule, leaderboardModule, customLeaderboardModule, adminModule];
+const modules = [
+  emojiTrackerModule,
+  leaderboardModule,
+  customLeaderboardModule,
+  adminModule,
+  helpModule,
+];
 
 validateConfig();
 

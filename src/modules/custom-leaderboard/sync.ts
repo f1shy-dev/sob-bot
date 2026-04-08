@@ -5,20 +5,25 @@ import {
 } from "discord.js";
 import type { BotClient } from "../../client";
 import type { Module } from "../../core/module";
+import { generateAliases } from "../../utils/words";
 
 interface GuildLeaderboardRow {
-  name: string;
+  word: string;
   emoji: string;
-  aliases: string;
 }
 
-function buildDynamicLeaderboardCommand(
+function buildDynamicCommand(
   alias: string,
   emoji: string,
+  type: "leaderboard" | "mostReacted",
 ): RESTPostAPIApplicationCommandsJSONBody {
   return new SlashCommandBuilder()
     .setName(alias)
-    .setDescription(`Show the ${emoji} leaderboard`)
+    .setDescription(
+      type === "leaderboard"
+        ? `Show the ${emoji} collected leaderboard`
+        : `Show the most reacted ${emoji} messages`,
+    )
     .addStringOption((opt) =>
       opt
         .setName("period")
@@ -37,21 +42,12 @@ function buildDynamicLeaderboardCommand(
 export function getGuildLeaderboardsForSync(
   client: BotClient,
   guildId: string,
-): Array<{ name: string; emoji: string; aliases: string[] }> {
-  const rows = client.db
+): Array<{ word: string; emoji: string }> {
+  return client.db
     .query<GuildLeaderboardRow, [string]>(
-      `SELECT name, emoji, aliases
-       FROM guild_leaderboards
-       WHERE guild_id = ?
-       ORDER BY name ASC`,
+      `SELECT word, emoji FROM guild_leaderboards WHERE guild_id = ? ORDER BY word ASC`,
     )
     .all(guildId);
-
-  return rows.map((row) => ({
-    name: row.name,
-    emoji: row.emoji,
-    aliases: JSON.parse(row.aliases) as string[],
-  }));
 }
 
 export async function registerGuildLeaderboardCommands(
@@ -60,9 +56,17 @@ export async function registerGuildLeaderboardCommands(
 ): Promise<void> {
   if (!client.application) return;
 
-  const commands = getGuildLeaderboardsForSync(client, guildId).flatMap((leaderboard) =>
-    leaderboard.aliases.map((alias) => buildDynamicLeaderboardCommand(alias, leaderboard.emoji)),
-  );
+  const commands = getGuildLeaderboardsForSync(client, guildId).flatMap((leaderboard) => {
+    const aliases = generateAliases(leaderboard.word);
+    return [
+      ...aliases.leaderboard.map((alias) =>
+        buildDynamicCommand(alias, leaderboard.emoji, "leaderboard"),
+      ),
+      ...aliases.mostReacted.map((alias) =>
+        buildDynamicCommand(alias, leaderboard.emoji, "mostReacted"),
+      ),
+    ];
+  });
 
   await client.application.commands.set(commands, guildId);
 }
