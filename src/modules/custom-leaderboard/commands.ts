@@ -8,7 +8,7 @@ import {
 import type { BotClient } from "../../client";
 import { getGuildLeaderboards, getGuildPrefix } from "../../core/router";
 import { baseEmbed, errorEmbed, successEmbed } from "../../utils/embeds";
-import { extractEmoji } from "../../utils/emoji";
+import { parseSingleEmoji } from "../../utils/emoji";
 import { isAdmin } from "../../utils/permissions";
 import { generateAliases } from "../../utils/words";
 import { registerGuildLeaderboardCommands } from "./sync";
@@ -37,13 +37,6 @@ export const listLeaderboardsSlashCommand = new SlashCommandBuilder()
 interface GuildLeaderboardRecord {
   word: string;
   emoji: string;
-}
-
-function parseSingleEmoji(input: string): string | null {
-  const trimmed = input.trim();
-  const matches = [...extractEmoji(trimmed)];
-  if (matches.length !== 1) return null;
-  return matches[0] === trimmed ? matches[0] : null;
 }
 
 function getGlobalCommandNames(client: BotClient): Set<string> {

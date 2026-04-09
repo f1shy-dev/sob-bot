@@ -2,7 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, type Message } f
 import type { BotClient } from "../../client";
 import { getGuildPrefix } from "../../core/router";
 import { baseEmbed, errorEmbed } from "../../utils/embeds";
-import { extractEmoji } from "../../utils/emoji";
+import { parseSingleEmoji } from "../../utils/emoji";
 import { isValidPeriodInput, parsePeriod, type Period } from "../../utils/time";
 import {
   getCollectedLeaderboard,
@@ -68,13 +68,6 @@ export const emojiMostReactedSlashCommand = new SlashCommandBuilder()
         { name: "All Time", value: "alltime" },
       ),
   );
-
-function parseSingleEmoji(input: string): string | null {
-  const trimmed = input.trim();
-  const matches = [...extractEmoji(trimmed)];
-  if (matches.length !== 1) return null;
-  return matches[0] === trimmed ? matches[0] : null;
-}
 
 function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value;
