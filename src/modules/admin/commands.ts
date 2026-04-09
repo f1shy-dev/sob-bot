@@ -142,17 +142,43 @@ function formatSqlValue(value: unknown): unknown {
   return value;
 }
 
-function formatSqlRows(rows: unknown[]): string {
-  return JSON.stringify(
-    rows.map((row) => {
-      if (!row || typeof row !== "object") return row;
-      return Object.fromEntries(
-        Object.entries(row).map(([key, value]) => [key, formatSqlValue(value)]),
-      );
-    }),
-    null,
-    2,
+function normalizeSqlRows(rows: unknown[]): Array<Record<string, unknown>> {
+  return rows.map((row, index) => {
+    if (!row || typeof row !== "object") {
+      return { value: formatSqlValue(row), row_index: index };
+    }
+
+    return Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, formatSqlValue(value)]),
+    );
+  });
+}
+
+function formatSqlRowsJson(rows: Array<Record<string, unknown>>): string {
+  return JSON.stringify(rows, null, 2);
+}
+
+function formatSqlRowsTable(rows: Array<Record<string, unknown>>): string {
+  if (rows.length === 0) return "(no rows)";
+
+  const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+  const stringRows = rows.map((row) =>
+    Object.fromEntries(columns.map((column) => [column, String(row[column] ?? "NULL")])),
   );
+
+  const widths = columns.map((column) => {
+    const cellWidth = Math.max(...stringRows.map((row) => row[column].length));
+    return Math.min(Math.max(column.length, cellWidth), 40);
+  });
+
+  const formatCell = (value: string, width: number): string => truncate(value, width).padEnd(width, " ");
+  const header = columns.map((column, index) => formatCell(column, widths[index])).join(" | ");
+  const divider = widths.map((width) => "-".repeat(width)).join("-+-");
+  const body = stringRows.map((row) =>
+    columns.map((column, index) => formatCell(row[column], widths[index])).join(" | "),
+  );
+
+  return [header, divider, ...body].join("\n");
 }
 
 async function replySqlResult(
@@ -170,17 +196,19 @@ async function replySqlResult(
   const statement = client.db.prepare(sql);
 
   if (statement.columnNames.length > 0) {
-    const rows = statement.all();
+    const rawRows = statement.all();
+    const rows = normalizeSqlRows(rawRows);
     const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
-    const formattedRows = formatSqlRows(rows);
-    const codeBlock = `\`\`\`json\n${formattedRows}\n\`\`\``;
+    const formattedTable = formatSqlRowsTable(rows);
+    const codeBlock = `\`\`\`\n${formattedTable}\n\`\`\``;
 
     if (codeBlock.length <= SQL_CODE_BLOCK_LIMIT) {
       await respond({ content: codeBlock, ephemeral });
       return;
     }
 
-    const attachment = new AttachmentBuilder(Buffer.from(formattedRows, "utf-8"), {
+    const formattedJson = formatSqlRowsJson(rows);
+    const attachment = new AttachmentBuilder(Buffer.from(formattedJson, "utf-8"), {
       name: "sql-result.json",
     });
     await respond({
@@ -188,7 +216,7 @@ async function replySqlResult(
         baseEmbed().setTitle("SQL Result").setDescription(
           [
             `Returned \`${rows.length}\` row(s) in \`${elapsedMs}ms\`.`,
-            `Result was too large for a code block, so it's attached as \`sql-result.json\`.`,
+            `Table was too large for a code block, so the full result is attached as \`sql-result.json\`.`,
           ].join("\n"),
         ),
       ],
