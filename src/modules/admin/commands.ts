@@ -10,6 +10,7 @@ import {
   type MessageContextMenuCommandInteraction,
 } from "discord.js";
 import type { BotClient } from "../../client";
+import { config } from "../../config";
 import { getGuildPrefix } from "../../core/router";
 import { baseEmbed, errorEmbed, successEmbed } from "../../utils/embeds";
 import { isAdmin } from "../../utils/permissions";
@@ -18,6 +19,7 @@ import { getGuildSelfReactPenalty } from "../emoji-tracker/queries";
 const DEBUG_MESSAGE_COMMAND_NAME = "Debug Message";
 const DEBUG_FIELD_LIMIT = 1024;
 const DEBUG_TOTAL_LIMIT = 5500;
+const SQL_CODE_BLOCK_LIMIT = 1990;
 
 export const settingsSlashCommand = new SlashCommandBuilder()
   .setName("settings")
@@ -63,6 +65,13 @@ export const settingsSlashCommand = new SlashCommandBuilder()
       ),
   )
   .addSubcommand((sub) => sub.setName("info").setDescription("Show current bot settings"));
+
+export const sqlSlashCommand = new SlashCommandBuilder()
+  .setName("sql")
+  .setDescription("Execute SQL against the bot database")
+  .addStringOption((opt) =>
+    opt.setName("query").setDescription("SQL to execute").setRequired(true),
+  );
 
 export const debugMessageContextMenu = new ContextMenuCommandBuilder()
   .setName(DEBUG_MESSAGE_COMMAND_NAME)
@@ -120,6 +129,87 @@ function truncate(value: string, maxLength: number): string {
 
 function escapeInlineCode(value: string): string {
   return value.replaceAll("`", "ˋ");
+}
+
+function isGlobalAdmin(userId: string): boolean {
+  return config.globalAdmins.includes(userId);
+}
+
+function formatSqlValue(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "bigint") return value.toString();
+  if (value instanceof Uint8Array) return `[blob ${value.byteLength} bytes]`;
+  return value;
+}
+
+function formatSqlRows(rows: unknown[]): string {
+  return JSON.stringify(
+    rows.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      return Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [key, formatSqlValue(value)]),
+      );
+    }),
+    null,
+    2,
+  );
+}
+
+async function replySqlResult(
+  respond: (payload: {
+    content?: string;
+    embeds?: ReturnType<typeof baseEmbed>[];
+    files?: AttachmentBuilder[];
+    ephemeral?: boolean;
+  }) => Promise<void>,
+  sql: string,
+  client: BotClient,
+  ephemeral = false,
+): Promise<void> {
+  const startedAt = performance.now();
+  const statement = client.db.prepare(sql);
+
+  if (statement.columnNames.length > 0) {
+    const rows = statement.all();
+    const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
+    const formattedRows = formatSqlRows(rows);
+    const codeBlock = `\`\`\`json\n${formattedRows}\n\`\`\``;
+
+    if (codeBlock.length <= SQL_CODE_BLOCK_LIMIT) {
+      await respond({ content: codeBlock, ephemeral });
+      return;
+    }
+
+    const attachment = new AttachmentBuilder(Buffer.from(formattedRows, "utf-8"), {
+      name: "sql-result.json",
+    });
+    await respond({
+      embeds: [
+        baseEmbed().setTitle("SQL Result").setDescription(
+          [
+            `Returned \`${rows.length}\` row(s) in \`${elapsedMs}ms\`.`,
+            `Result was too large for a code block, so it's attached as \`sql-result.json\`.`,
+          ].join("\n"),
+        ),
+      ],
+      files: [attachment],
+      ephemeral,
+    });
+    return;
+  }
+
+  const result = statement.run();
+  const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
+  await respond({
+    embeds: [
+      successEmbed("SQL executed successfully.").addFields(
+        { name: "Changes", value: `\`${result.changes}\``, inline: true },
+        { name: "Last Insert Rowid", value: `\`${result.lastInsertRowid}\``, inline: true },
+        { name: "Time", value: `\`${elapsedMs}ms\``, inline: true },
+      ),
+    ],
+    ephemeral,
+  });
 }
 
 function addDebugField(
@@ -383,6 +473,28 @@ export async function handleSettingsPrefixCommand(
   });
 }
 
+export async function handleSqlPrefixCommand(
+  message: Message,
+  args: string[],
+  client: BotClient,
+): Promise<void> {
+  if (!isGlobalAdmin(message.author.id)) {
+    await message.reply({ embeds: [errorEmbed("You are not allowed to use this command.")] });
+    return;
+  }
+
+  const sql = args.join(" ").trim();
+  if (!sql) {
+    const prefix = message.guild ? getGuildPrefix(client, message.guild.id) : "!";
+    await message.reply({ embeds: [errorEmbed(`Usage: \`${prefix}sql <query>\``)] });
+    return;
+  }
+
+  await replySqlResult(async (payload) => {
+    await message.reply(payload);
+  }, sql, client);
+}
+
 export async function handleDebugMessageContextMenu(
   interaction: MessageContextMenuCommandInteraction,
   _client: BotClient,
@@ -529,7 +641,26 @@ export async function handleAdminSlashCommand(
   interaction: ChatInputCommandInteraction,
   client: BotClient,
 ): Promise<boolean> {
-  if (interaction.commandName !== "settings") return false;
-  await handleSettingsSlashCommandInner(interaction, client);
-  return true;
+  if (interaction.commandName === "settings") {
+    await handleSettingsSlashCommandInner(interaction, client);
+    return true;
+  }
+
+  if (interaction.commandName === "sql") {
+    if (!isGlobalAdmin(interaction.user.id)) {
+      await interaction.reply({
+        embeds: [errorEmbed("You are not allowed to use this command.")],
+        ephemeral: true,
+      });
+      return true;
+    }
+
+    const sql = interaction.options.getString("query", true).trim();
+    await replySqlResult(async (payload) => {
+      await interaction.reply(payload);
+    }, sql, client, true);
+    return true;
+  }
+
+  return false;
 }
